@@ -1,0 +1,3980 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#1D9E75">
+<title>Suivi CA Narbonne</title>
+
+<!-- PWA — Manifest -->
+<link rel="manifest" href="manifest.json">
+
+<!-- PWA — iOS spécifique (Apple ne lit pas tout le manifest) -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Suivi CA">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+
+<!-- Couleur de thème pour la barre d'adresse Android -->
+<meta name="msapplication-TileColor" content="#1D9E75">
+<style>
+  /* ────────────────────────────────────────────────────────────
+     Reset & base
+     ──────────────────────────────────────────────────────────── */
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    height: 100%;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    background: #f5f4ee;
+    color: #2c2c2a;
+    -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+  }
+  button {
+    font-family: inherit;
+    font-size: inherit;
+    cursor: pointer;
+    border: none;
+    background: none;
+    color: inherit;
+  }
+  input[type="number"] {
+    font-family: inherit;
+    border: none;
+    background: none;
+    outline: none;
+    -moz-appearance: textfield;
+  }
+  input[type="number"]::-webkit-outer-spin-button,
+  input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
+  /* ────────────────────────────────────────────────────────────
+     Structure générale
+     ──────────────────────────────────────────────────────────── */
+  #app {
+    max-width: 480px;
+    margin: 0 auto;
+    min-height: 100vh;
+    background: white;
+    box-shadow: 0 0 24px rgba(0,0,0,0.04);
+    display: flex;
+    flex-direction: column;
+  }
+  .topbar {
+    background: #f1efe8;
+    padding: 12px 18px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 0.5px solid #e3e1d8;
+    font-size: 13px;
+  }
+  .topbar-left { display: flex; align-items: center; gap: 8px; font-weight: 500; }
+  .topbar-right { display: flex; align-items: center; gap: 6px; color: #5f5e5a; font-size: 12px; }
+
+  /* Bouton MAJ dans la topbar */
+  .btn-maj {
+    position: relative;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: transparent;
+    border: none;
+    color: #888780;
+    font-size: 16px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    margin-right: 4px;
+    transition: all 0.2s;
+  }
+  .btn-maj:active { background: #f1efe8; }
+  .btn-maj-icon {
+    display: block;
+    transition: transform 0.4s ease;
+  }
+  .btn-maj.spinning .btn-maj-icon {
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+
+  /* Pastille rouge animée quand nouvelle version dispo */
+  .btn-maj-pastille {
+    display: none;
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    width: 9px;
+    height: 9px;
+    background: #d85a30;
+    border: 1.5px solid #f5f4ee;
+    border-radius: 50%;
+    animation: pulse-pastille 1.5s ease-in-out infinite;
+  }
+  .btn-maj.has-update .btn-maj-pastille { display: block; }
+  .btn-maj.has-update { color: #d85a30; }
+  @keyframes pulse-pastille {
+    0%, 100% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.3); opacity: 0.6; }
+  }
+
+  /* Modal de confirmation MAJ */
+  .maj-modal-backdrop {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 1000;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    animation: fadeIn 0.2s ease;
+  }
+  .maj-modal-backdrop.visible { display: flex; }
+  .maj-modal {
+    background: white;
+    border-radius: 16px;
+    padding: 24px;
+    max-width: 360px;
+    width: 100%;
+    box-shadow: 0 12px 30px rgba(0,0,0,0.2);
+  }
+  .maj-modal-title {
+    font-size: 18px;
+    font-weight: 600;
+    color: #2c2c2a;
+    margin-bottom: 8px;
+  }
+  .maj-modal-body {
+    font-size: 14px;
+    color: #5f5e5a;
+    margin-bottom: 16px;
+    line-height: 1.5;
+  }
+  .maj-modal-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+  }
+  .maj-modal-actions button {
+    padding: 10px 16px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    border: none;
+    cursor: pointer;
+  }
+  .maj-modal-btn-secondary {
+    background: #f1efe8;
+    color: #5f5e5a;
+  }
+  .maj-modal-btn-primary {
+    background: #1D9E75;
+    color: white;
+  }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: #1D9E75; }
+  .dot.offline { background: #888780; }
+  .dot.error { background: #d85a30; }
+
+  .screen {
+    padding: 20px 18px;
+    flex: 1;
+    display: none;
+  }
+  .screen.active { display: block; }
+
+  .screen-title {
+    font-size: 13px;
+    color: #5f5e5a;
+    margin-bottom: 8px;
+  }
+  .screen-heading {
+    font-size: 20px;
+    font-weight: 500;
+    margin-bottom: 20px;
+    color: #2c2c2a;
+  }
+
+  /* ────────────────────────────────────────────────────────────
+     Boutons sélection magasin / vendeur
+     ──────────────────────────────────────────────────────────── */
+  .btn-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 24px;
+  }
+  .btn-choice {
+    padding: 16px 18px;
+    background: white;
+    border: 1px solid #e3e1d8;
+    border-radius: 12px;
+    text-align: left;
+    font-size: 15px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    transition: all 0.15s;
+  }
+  .btn-choice:active { transform: scale(0.98); background: #f5f4ee; }
+  .btn-choice.selected {
+    border-color: #1D9E75;
+    background: #E1F5EE;
+    color: #085041;
+    font-weight: 500;
+  }
+  .btn-choice .pastille {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .btn-choice .role-tag {
+    margin-left: auto;
+    font-size: 10px;
+    padding: 2px 6px;
+    background: #f1efe8;
+    color: #5f5e5a;
+    border-radius: 4px;
+    font-weight: 500;
+  }
+
+  /* ────────────────────────────────────────────────────────────
+     Formulaire de saisie
+     ──────────────────────────────────────────────────────────── */
+  .field {
+    margin-bottom: 16px;
+  }
+  .field-label {
+    display: block;
+    font-size: 12px;
+    color: #5f5e5a;
+    margin-bottom: 6px;
+  }
+  .field-input {
+    width: 100%;
+    height: 56px;
+    border: 1px solid #e3e1d8;
+    border-radius: 12px;
+    padding: 0 18px;
+    font-size: 22px;
+    font-weight: 500;
+    text-align: right;
+    background: white;
+    display: flex;
+    align-items: center;
+  }
+  .field-input input {
+    flex: 1;
+    text-align: right;
+    height: 100%;
+    font-size: inherit;
+    font-weight: inherit;
+    width: 100%;
+  }
+  .field-input .currency {
+    margin-left: 8px;
+    color: #888780;
+    font-size: 18px;
+  }
+  .field-input:focus-within {
+    border-color: #1D9E75;
+    box-shadow: 0 0 0 3px rgba(29, 158, 117, 0.15);
+  }
+
+  /* ────────────────────────────────────────────────────────────
+     Récap cumul
+     ──────────────────────────────────────────────────────────── */
+  .recap {
+    background: #E1F5EE;
+    border-radius: 12px;
+    padding: 14px 16px;
+    margin-bottom: 16px;
+    display: none;
+  }
+  .recap.show { display: block; }
+  .recap-line {
+    display: flex;
+    justify-content: space-between;
+    font-size: 13px;
+    color: #0F6E56;
+    margin-bottom: 4px;
+  }
+  .recap-line:last-child { margin-bottom: 0; }
+  .recap-total {
+    font-size: 18px;
+    font-weight: 500;
+    color: #085041;
+  }
+
+  /* ────────────────────────────────────────────────────────────
+     Bouton principal
+     ──────────────────────────────────────────────────────────── */
+  .btn-primary {
+    width: 100%;
+    padding: 16px;
+    background: #1D9E75;
+    color: white;
+    border-radius: 12px;
+    font-size: 16px;
+    font-weight: 500;
+    margin-top: 8px;
+    transition: all 0.15s;
+  }
+  .btn-primary:active { background: #168A65; transform: scale(0.98); }
+  .btn-primary:disabled {
+    background: #b4b2a9;
+    cursor: not-allowed;
+  }
+
+  .btn-secondary {
+    width: 100%;
+    padding: 12px;
+    color: #5f5e5a;
+    font-size: 13px;
+    margin-top: 12px;
+    text-align: center;
+  }
+  .btn-secondary:active { background: #f5f4ee; }
+
+  /* ────────────────────────────────────────────────────────────
+     Toast & loading
+     ──────────────────────────────────────────────────────────── */
+  .toast {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #2c2c2a;
+    color: white;
+    padding: 12px 20px;
+    border-radius: 12px;
+    font-size: 14px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+    z-index: 1000;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s;
+    max-width: 360px;
+    text-align: center;
+  }
+  .toast.show { opacity: 1; }
+  .toast.success { background: #1D9E75; }
+  .toast.error { background: #d85a30; }
+
+  .loading {
+    text-align: center;
+    padding: 40px 20px;
+    color: #888780;
+    font-size: 14px;
+  }
+
+  /* ────────────────────────────────────────────────────────────
+     Onglets entre types de saisie
+     ──────────────────────────────────────────────────────────── */
+  .tabs {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 20px;
+    background: #f1efe8;
+    padding: 4px;
+    border-radius: 10px;
+  }
+  .tab {
+    flex: 1;
+    padding: 10px 8px;
+    text-align: center;
+    font-size: 13px;
+    font-weight: 500;
+    color: #5f5e5a;
+    border-radius: 8px;
+    transition: all 0.15s;
+  }
+  .tab.active {
+    background: white;
+    color: #1D9E75;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  }
+  .tab:disabled {
+    color: #b4b2a9;
+    cursor: not-allowed;
+  }
+
+  .form-section { display: none; }
+  .form-section.active { display: block; }
+
+  /* ────────────────────────────────────────────────────────────
+     Champs texte et date
+     ──────────────────────────────────────────────────────────── */
+  .field-input-text {
+    width: 100%;
+    height: 48px;
+    border: 1px solid #e3e1d8;
+    border-radius: 12px;
+    padding: 0 16px;
+    font-size: 15px;
+    background: white;
+    color: #2c2c2a;
+    font-family: inherit;
+  }
+  .field-input-text:focus {
+    border-color: #1D9E75;
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(29, 158, 117, 0.15);
+  }
+  .field-input-text::placeholder { color: #b4b2a9; }
+
+  .field-row {
+    display: flex;
+    gap: 10px;
+  }
+  .field-row .field { flex: 1; }
+
+  /* ────────────────────────────────────────────────────────────
+     Stepper numérique pour saisie de cartes fidélité
+     ──────────────────────────────────────────────────────────── */
+  .qty-stepper {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    background: #f1efe8;
+    border-radius: 12px;
+    padding: 8px;
+    margin-top: 4px;
+  }
+  .qty-btn {
+    width: 56px;
+    height: 56px;
+    border-radius: 12px;
+    background: white;
+    border: 1px solid #e3e1d8;
+    font-size: 28px;
+    font-weight: 300;
+    color: #1D9E75;
+    cursor: pointer;
+    transition: all 0.1s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .qty-btn:active {
+    background: #E1F5EE;
+    transform: scale(0.95);
+  }
+  .qty-btn:disabled {
+    color: #b4b2a9;
+    background: #f9f8f4;
+    cursor: not-allowed;
+  }
+  .qty-input {
+    width: 90px;
+    height: 56px;
+    background: white;
+    border: 1px solid #e3e1d8;
+    border-radius: 12px;
+    font-size: 32px;
+    font-weight: 600;
+    color: #2c2c2a;
+    text-align: center;
+    -moz-appearance: textfield;
+  }
+  .qty-input::-webkit-inner-spin-button,
+  .qty-input::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
+  /* ────────────────────────────────────────────────────────────
+     Récap objectif (utilisé dans Carte)
+     ──────────────────────────────────────────────────────────── */
+  .recap-objectif {
+    background: #FAF5F0;
+    border: 1px dashed #E5D4B5;
+    border-radius: 10px;
+    padding: 12px 14px;
+    margin-top: 16px;
+    margin-bottom: 16px;
+  }
+  .recap-objectif-line {
+    display: flex;
+    justify-content: space-between;
+    font-size: 13px;
+    color: #5f5e5a;
+    padding: 3px 0;
+  }
+  .recap-objectif-line .bold { font-weight: 600; color: #2c2c2a; }
+  .recap-objectif-line .italic { font-style: italic; color: #888780; }
+
+  /* ────────────────────────────────────────────────────────────
+     Historique des saisies (onglet 6)
+     ──────────────────────────────────────────────────────────── */
+  .historique-filter {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 12px;
+    background: #f1efe8;
+    padding: 3px;
+    border-radius: 8px;
+  }
+  .historique-filter-btn {
+    flex: 1;
+    padding: 6px 8px;
+    text-align: center;
+    font-size: 12px;
+    border-radius: 6px;
+    color: #5f5e5a;
+    transition: all 0.15s;
+  }
+  .historique-filter-btn.active {
+    background: white;
+    color: #1D9E75;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+    font-weight: 500;
+  }
+
+  .historique-card {
+    background: white;
+    border: 1px solid #e3e1d8;
+    border-radius: 10px;
+    padding: 10px 12px;
+    margin-bottom: 8px;
+    transition: opacity 0.2s, transform 0.2s;
+  }
+  .historique-card.statut-annule {
+    opacity: 0.5;
+    background: #faf8f3;
+  }
+  .historique-card.statut-remplace {
+    opacity: 0.55;
+    background: #faf8f3;
+  }
+  .historique-card.statut-facture {
+    border-left: 3px solid #1D9E75;
+  }
+  .historique-card.removing {
+    opacity: 0.4;
+    transform: translateX(20px);
+  }
+
+  .hist-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 6px;
+    font-size: 11px;
+  }
+  .hist-header .pastille {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .hist-header .vendeur-nom {
+    font-weight: 500;
+    color: #2c2c2a;
+  }
+  .hist-header .type-badge {
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 10px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+  .hist-header .type-badge.ca {
+    background: #E1F5EE;
+    color: #0F6E56;
+  }
+  .hist-header .type-badge.cmd {
+    background: #FAEEDA;
+    color: #854F0B;
+  }
+  .hist-header .type-badge.egt {
+    background: #EBE3F5;
+    color: #4F2D9C;
+  }
+  .hist-header .type-badge.carte {
+    background: #FDE5EC;
+    color: #B82A56;
+  }
+  .hist-header .statut-badge {
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 9px;
+    font-weight: 500;
+    text-transform: uppercase;
+  }
+  .hist-header .statut-badge.annule {
+    background: #f1efe8;
+    color: #888780;
+    text-decoration: line-through;
+  }
+  .hist-header .statut-badge.remplace {
+    background: #f1efe8;
+    color: #888780;
+    font-style: italic;
+  }
+  .hist-header .statut-badge.facture {
+    background: #d4edbc;
+    color: #2D5C2A;
+  }
+  .hist-header .heure {
+    margin-left: auto;
+    font-size: 10px;
+    color: #888780;
+    font-variant-numeric: tabular-nums;
+  }
+  .hist-body {
+    font-size: 12px;
+    color: #5f5e5a;
+    line-height: 1.4;
+  }
+  .hist-body .montants {
+    font-weight: 600;
+    color: #2c2c2a;
+    font-variant-numeric: tabular-nums;
+  }
+  .hist-body .client-info {
+    font-size: 11px;
+    color: #888780;
+    margin-top: 2px;
+  }
+  .hist-actions {
+    margin-top: 8px;
+    text-align: right;
+  }
+  .hist-btn-annuler {
+    font-size: 11px;
+    color: #d85a30;
+    padding: 4px 10px;
+    border-radius: 6px;
+    background: #FFE9E2;
+    transition: all 0.15s;
+  }
+  .hist-btn-annuler:active {
+    background: #FBC4B0;
+    transform: scale(0.97);
+  }
+  .hist-btn-annuler:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  /* ────────────────────────────────────────────────────────────
+     Liste commandes en cours (onglet "Cmd en cours")
+     ──────────────────────────────────────────────────────────── */
+  .cmd-list-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 14px;
+  }
+  .cmd-list-title {
+    font-size: 15px;
+    font-weight: 500;
+    color: #2c2c2a;
+  }
+  .cmd-list-count {
+    font-size: 12px;
+    padding: 3px 8px;
+    background: #E1F5EE;
+    color: #0F6E56;
+    border-radius: 12px;
+    font-weight: 500;
+  }
+  .cmd-list-empty {
+    text-align: center;
+    padding: 40px 20px;
+    color: #888780;
+    font-size: 14px;
+    background: #f5f4ee;
+    border-radius: 12px;
+  }
+
+  .cmd-card {
+    background: white;
+    border: 1px solid #e3e1d8;
+    border-radius: 12px;
+    padding: 14px;
+    margin-bottom: 10px;
+    transition: all 0.2s;
+  }
+  .cmd-card.removing {
+    opacity: 0.4;
+    transform: translateX(20px);
+  }
+  /* Carte commande cochée comme facturable ce mois : surbrillance verte */
+  .cmd-card.facturable {
+    background: #E8F7F0;
+    border-color: #1D9E75;
+    box-shadow: 0 1px 4px rgba(29, 158, 117, 0.15);
+  }
+
+  /* Checkbox facturable ce mois */
+  .cmd-checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    margin: -8px -8px 10px -8px;
+    border-radius: 8px;
+    background: #f5f4ee;
+    cursor: pointer;
+    user-select: none;
+    transition: background 0.15s;
+  }
+  .cmd-checkbox-label:hover { background: #ebe9e0; }
+  .cmd-card.facturable .cmd-checkbox-label {
+    background: #1D9E75;
+    color: white;
+  }
+  .cmd-checkbox {
+    width: 20px;
+    height: 20px;
+    accent-color: #1D9E75;
+    cursor: pointer;
+  }
+  .cmd-checkbox-text {
+    font-size: 13px;
+    font-weight: 500;
+    color: #5f5e5a;
+  }
+  .cmd-card.facturable .cmd-checkbox-text {
+    color: white;
+  }
+
+  /* Case à cocher "À facturer ce mois" dans le formulaire Commande */
+  .cmd-facturable-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 14px 16px;
+    margin: 16px 0;
+    background: #f5f4ee;
+    border: 1px solid #e3e1d8;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.15s;
+    user-select: none;
+  }
+  .cmd-facturable-row:has(.cmd-facturable-checkbox:checked) {
+    background: #E8F7F0;
+    border-color: #1D9E75;
+  }
+  .cmd-facturable-checkbox {
+    width: 22px;
+    height: 22px;
+    flex-shrink: 0;
+    margin-top: 1px;
+    accent-color: #1D9E75;
+    cursor: pointer;
+  }
+  .cmd-facturable-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .cmd-facturable-text strong {
+    font-size: 14px;
+    font-weight: 600;
+    color: #2c2c2a;
+  }
+  .cmd-facturable-text small {
+    font-size: 11px;
+    color: #888780;
+    font-weight: 400;
+  }
+
+  /* Bandeau résumé du portefeuille en haut de la liste */
+  .encours-search-wrap {
+    position: relative;
+    margin-bottom: 12px;
+  }
+  .encours-search-input {
+    width: 100%;
+    box-sizing: border-box;
+    background: white;
+    border: 1px solid #e3e1d8;
+    border-radius: 10px;
+    padding: 12px 38px 12px 14px;
+    font-size: 14px;
+    color: #2c2c2a;
+    font-family: inherit;
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  .encours-search-input::placeholder {
+    color: #888780;
+    font-size: 13px;
+  }
+  .encours-search-input:focus {
+    outline: none;
+    border-color: #1D9E75;
+    box-shadow: 0 0 0 2px rgba(29, 158, 117, 0.12);
+  }
+  .encours-search-clear {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: #f1efe8;
+    color: #5f5e5a;
+    border: none;
+    font-size: 18px;
+    font-weight: 300;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+  }
+  .encours-search-clear:active { background: #e3e1d8; }
+
+  .encours-search-empty {
+    padding: 20px 12px;
+    color: #888780;
+    font-size: 13px;
+    font-style: italic;
+    text-align: center;
+  }
+
+  .encours-summary {
+    background: #f5f4ee;
+    border-radius: 10px;
+    padding: 12px 14px;
+    margin-bottom: 14px;
+    font-size: 13px;
+  }
+  .encours-summary-line {
+    color: #5f5e5a;
+    padding: 2px 0;
+  }
+  .encours-summary-line strong { color: #2c2c2a; }
+  .encours-summary-tot {
+    font-weight: 600;
+    color: #0F6E56;
+  }
+  .encours-summary-hint {
+    font-size: 11px;
+    color: #888780;
+    font-style: italic;
+    margin-top: 6px;
+  }
+
+  .cmd-card-client {
+    font-size: 15px;
+    font-weight: 600;
+    color: #2c2c2a;
+    margin-bottom: 2px;
+  }
+  .cmd-card-denom {
+    font-size: 13px;
+    color: #5f5e5a;
+    margin-bottom: 8px;
+    line-height: 1.3;
+  }
+  .cmd-card-meta {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: #5f5e5a;
+    margin-bottom: 10px;
+    flex-wrap: wrap;
+  }
+  .cmd-card-meta .pastille {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .cmd-card-meta .sep {
+    color: #b4b2a9;
+  }
+  .cmd-card-meta .date-pose {
+    background: #f1efe8;
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-size: 11px;
+  }
+  .cmd-card-meta .date-pose.urgent {
+    background: #FFE9E2;
+    color: #B83A12;
+  }
+  .cmd-card-meta .date-pose.no-date {
+    background: #f5f4ee;
+    color: #888780;
+    font-style: italic;
+  }
+
+  .cmd-card-amounts {
+    display: flex;
+    justify-content: space-around;
+    padding: 10px 0;
+    margin: 8px 0;
+    background: #f5f4ee;
+    border-radius: 8px;
+    font-variant-numeric: tabular-nums;
+  }
+  .cmd-card-amount {
+    text-align: center;
+  }
+  .cmd-card-amount .label {
+    font-size: 10px;
+    text-transform: uppercase;
+    color: #888780;
+    letter-spacing: 0.3px;
+    margin-bottom: 2px;
+  }
+  .cmd-card-amount .value {
+    font-size: 14px;
+    font-weight: 600;
+    color: #2c2c2a;
+  }
+
+  .cmd-card-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
+  }
+  .cmd-btn {
+    flex: 1;
+    padding: 10px;
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 500;
+    transition: all 0.15s;
+  }
+  .cmd-btn:active { transform: scale(0.97); }
+  .cmd-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .cmd-btn-cancel {
+    background: #f5f4ee;
+    color: #5f5e5a;
+    border: 1px solid #e3e1d8;
+  }
+  .cmd-btn-cancel:active { background: #e3e1d8; }
+  .cmd-btn-invoice {
+    background: #1D9E75;
+    color: white;
+  }
+  .cmd-btn-invoice:active { background: #168A65; }
+
+  /* ────────────────────────────────────────────────────────────
+     Mini-progression EGT (en haut du formulaire EGT)
+     ──────────────────────────────────────────────────────────── */
+  .egt-progress {
+    background: #f5f4ee;
+    border: 1px solid #e3e1d8;
+    border-radius: 12px;
+    padding: 12px 14px;
+    margin-bottom: 20px;
+  }
+  .egt-progress-title {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #5f5e5a;
+    margin-bottom: 10px;
+  }
+  .egt-progress-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+  .egt-progress-cell {
+    text-align: center;
+  }
+  .egt-progress-cell-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    color: #888780;
+    margin-bottom: 3px;
+  }
+  .egt-progress-cell-value {
+    font-size: 14px;
+    font-weight: 600;
+    color: #2c2c2a;
+    font-variant-numeric: tabular-nums;
+  }
+  .egt-progress-cell-value.highlight {
+    color: #1D9E75;
+  }
+  .egt-progress-bar {
+    height: 6px;
+    background: #e3e1d8;
+    border-radius: 3px;
+    overflow: hidden;
+    margin-bottom: 6px;
+  }
+  .egt-progress-bar-fill {
+    height: 100%;
+    background: #1D9E75;
+    border-radius: 3px;
+    transition: width 0.5s ease;
+  }
+  .egt-progress-pct {
+    text-align: right;
+    font-size: 11px;
+    color: #5f5e5a;
+    font-variant-numeric: tabular-nums;
+  }
+  .egt-progress-pct.high {
+    color: #085041;
+    font-weight: 600;
+  }
+  .egt-progress-loading {
+    text-align: center;
+    color: #888780;
+    font-size: 12px;
+    padding: 8px 0;
+  }
+
+  /* ────────────────────────────────────────────────────────────
+     Bloc primes potentielles (en bas de chaque carte vendeur du Récap)
+     ──────────────────────────────────────────────────────────── */
+  .primes-block {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 0.5px solid #f1efe8;
+  }
+  .primes-block-title {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #888780;
+    margin-bottom: 8px;
+  }
+  .prime-line {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    padding: 4px 0;
+    color: #5f5e5a;
+  }
+  .prime-line .ico {
+    width: 14px;
+    text-align: center;
+    flex-shrink: 0;
+    font-size: 12px;
+  }
+  .prime-line .label {
+    flex: 0 0 60px;
+    font-size: 11px;
+    color: #888780;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+  .prime-line .montant {
+    flex: 0 0 70px;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+  }
+  .prime-line .meta {
+    flex: 1;
+    text-align: right;
+    font-size: 11px;
+    color: #888780;
+    font-style: italic;
+  }
+  /* Couleurs selon statut */
+  .prime-line.acquise .montant { color: #0F6E56; }
+  .prime-line.acquise .meta { color: #0F6E56; font-style: normal; }
+  .prime-line.acquise .ico { color: #1D9E75; }
+  .prime-line.en-cours .montant { color: #BA7517; }
+  .prime-line.en-cours .ico { color: #EF9F27; }
+  .prime-line.eloignee .montant { color: #888780; }
+  .prime-line.eloignee .ico { color: #b4b2a9; }
+  .prime-line.non-eligible {
+    opacity: 0.4;
+  }
+  .prime-line.non-eligible .montant {
+    color: #b4b2a9;
+    text-decoration: line-through;
+  }
+
+  .primes-total {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 0.5px solid #f1efe8;
+    font-size: 12px;
+  }
+  .primes-total .label {
+    color: #5f5e5a;
+    font-weight: 500;
+  }
+  .primes-total .value {
+    color: #2c2c2a;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+  .primes-total .value.has-acquise { color: #0F6E56; }
+
+  /* ────────────────────────────────────────────────────────────
+     Simulateur de primes (intégré dans chaque carte vendeur)
+     ──────────────────────────────────────────────────────────── */
+  .simulator {
+    margin-top: 10px;
+    padding: 10px 12px;
+    background: #FAEEDA;
+    border: 1px dashed #F0CB8F;
+    border-radius: 10px;
+  }
+  .simulator-title {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #854F0B;
+    margin-bottom: 8px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .simulator-reset {
+    font-size: 10px;
+    color: #BA7517;
+    background: transparent;
+    padding: 2px 6px;
+    border-radius: 4px;
+  }
+  .simulator-reset:active { background: #FAC775; }
+  .simulator-fields {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 6px;
+    margin-bottom: 10px;
+  }
+  .simulator-field {
+    background: white;
+    border: 1px solid #F0CB8F;
+    border-radius: 6px;
+    padding: 4px 8px;
+  }
+  .simulator-field label {
+    display: block;
+    font-size: 9px;
+    text-transform: uppercase;
+    color: #888780;
+    margin-bottom: 2px;
+  }
+  .simulator-field input {
+    width: 100%;
+    border: none;
+    outline: none;
+    font-size: 13px;
+    font-weight: 600;
+    color: #2c2c2a;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    background: transparent;
+    font-family: inherit;
+  }
+  .simulator-result {
+    background: white;
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 11px;
+  }
+  .simulator-result-line {
+    display: flex;
+    justify-content: space-between;
+    padding: 2px 0;
+    color: #5f5e5a;
+  }
+  .simulator-result-line .montant {
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+  .simulator-result-line.acquise .montant { color: #0F6E56; }
+  .simulator-result-line.plafonnee .montant { color: #BA7517; }
+  .simulator-result-line.acquise .meta-sim {
+    color: #0F6E56;
+    font-style: normal;
+    font-size: 10px;
+  }
+  .simulator-result-line.plafonnee .meta-sim {
+    color: #BA7517;
+    font-style: italic;
+    font-size: 10px;
+  }
+  .simulator-result-line.zero .montant { color: #b4b2a9; }
+  .simulator-result-line.zero .meta-sim {
+    color: #b4b2a9;
+    font-style: italic;
+    font-size: 10px;
+  }
+  .simulator-total {
+    display: flex;
+    justify-content: space-between;
+    padding-top: 6px;
+    margin-top: 4px;
+    border-top: 0.5px solid #f1efe8;
+    font-size: 12px;
+    font-weight: 600;
+    color: #2c2c2a;
+  }
+  .simulator-total.has-acquise { color: #0F6E56; }
+
+  /* ────────────────────────────────────────────────────────────
+     Donut central du mini-bandeau (atterrissage pondéré)
+     ──────────────────────────────────────────────────────────── */
+  .donut-wrap {
+    display: flex;
+    justify-content: center;
+    margin: 0 0 14px 0;
+  }
+  .donut-svg {
+    width: 110px;
+    height: 110px;
+    display: block;
+  }
+  .donut-track {
+    fill: none;
+    stroke: #d6e9e0;
+    stroke-width: 10;
+  }
+  .donut-progress {
+    fill: none;
+    stroke: #1D9E75;
+    stroke-width: 10;
+    stroke-linecap: round;
+    transform: rotate(-90deg);
+    transform-origin: 50% 50%;
+  }
+  .donut-progress.low { stroke: #b4b2a9; }
+  .donut-progress.high { stroke: #085041; }
+  .donut-center-pct {
+    font-size: 22px;
+    font-weight: 700;
+    fill: #2c2c2a;
+    text-anchor: middle;
+    dominant-baseline: central;
+  }
+  .donut-center-pct.high { fill: #085041; }
+  .donut-center-label {
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    fill: #888780;
+    text-anchor: middle;
+  }
+  .donut-center-amount {
+    font-size: 10px;
+    fill: #5f5e5a;
+    text-anchor: middle;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ────────────────────────────────────────────────────────────
+     Mini-récap rapide (en haut de l'écran sélection vendeur)
+     ──────────────────────────────────────────────────────────── */
+  .quick-recap {
+    background: linear-gradient(135deg, #E1F5EE 0%, #f5f4ee 100%);
+    border: 1px solid #d6e9e0;
+    border-radius: 12px;
+    padding: 14px 16px;
+    margin-bottom: 20px;
+  }
+  .quick-recap-title {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #5f5e5a;
+    margin-bottom: 12px;
+  }
+  .quick-recap-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  .quick-recap-cell {
+    text-align: center;
+    padding: 0 4px;
+  }
+  .quick-recap-cell-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    color: #888780;
+    margin-bottom: 4px;
+  }
+  .quick-recap-cell-value {
+    font-size: 16px;
+    font-weight: 600;
+    color: #2c2c2a;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.2;
+  }
+  .quick-recap-cell-pct {
+    font-size: 11px;
+    color: #1D9E75;
+    font-weight: 500;
+    margin-top: 2px;
+  }
+  .quick-recap-cell-pct.low { color: #888780; }
+  .quick-recap-cell-pct.high { color: #085041; font-weight: 600; }
+  .quick-recap-footer {
+    padding-top: 10px;
+    border-top: 0.5px solid #d6e9e0;
+    font-size: 12px;
+    color: #5f5e5a;
+    font-variant-numeric: tabular-nums;
+  }
+  .quick-recap-footer-line {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 3px;
+  }
+  .quick-recap-footer-line:last-child { margin-bottom: 0; }
+  .quick-recap-footer-line .label {
+    color: #888780;
+    font-size: 11px;
+  }
+  .quick-recap-loading {
+    text-align: center;
+    color: #888780;
+    font-size: 12px;
+    padding: 8px 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+  .loader-spinner {
+    width: 14px;
+    height: 14px;
+    border: 2px solid #d6d4cc;
+    border-top-color: #1D9E75;
+    border-radius: 50%;
+    animation: spinner-rotate 0.8s linear infinite;
+    display: inline-block;
+  }
+  @keyframes spinner-rotate {
+    to { transform: rotate(360deg); }
+  }
+  .quick-recap-error {
+    text-align: center;
+    padding: 12px 8px;
+  }
+  .quick-recap-error-msg {
+    color: #BA4A20;
+    font-size: 12px;
+    margin-bottom: 8px;
+    line-height: 1.4;
+  }
+  .quick-recap-retry {
+    background: #1D9E75;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 8px 16px;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+  }
+  .quick-recap-retry:active { background: #148A63; }
+
+  /* Bloc d'erreur générique avec bouton Réessayer (Récap, Historique, Cmd en cours) */
+  .load-error {
+    text-align: center;
+    padding: 40px 20px;
+  }
+  .load-error-msg {
+    color: #BA4A20;
+    font-size: 14px;
+    margin-bottom: 12px;
+    line-height: 1.5;
+  }
+  .load-error-retry {
+    background: #1D9E75;
+    color: white;
+    border: none;
+    border-radius: 10px;
+    padding: 12px 22px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+  }
+  .load-error-retry:active { background: #148A63; }
+
+  /* ────────────────────────────────────────────────────────────
+     Récap (onglet 4)
+     ──────────────────────────────────────────────────────────── */
+  .recap-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 14px;
+  }
+  .recap-title {
+    font-size: 15px;
+    font-weight: 500;
+    color: #2c2c2a;
+  }
+  .recap-refresh {
+    font-size: 12px;
+    color: #1D9E75;
+    padding: 6px 10px;
+    border-radius: 8px;
+    background: #E1F5EE;
+  }
+  .recap-refresh:active { transform: scale(0.96); }
+  .recap-loading {
+    text-align: center;
+    padding: 30px 0;
+    color: #888780;
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+  }
+
+  /* Bloc de dimension (ACC / Atelier / EGT) */
+  .dim-block {
+    background: white;
+    border: 1px solid #e3e1d8;
+    border-radius: 12px;
+    padding: 12px 14px;
+    margin-bottom: 10px;
+  }
+  .dim-title {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #5f5e5a;
+    margin-bottom: 8px;
+  }
+  .dim-line {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 5px 0;
+    font-size: 13px;
+    color: #5f5e5a;
+  }
+  .dim-line .dim-value {
+    font-variant-numeric: tabular-nums;
+    color: #2c2c2a;
+    font-weight: 500;
+  }
+  .dim-line.highlight .dim-value {
+    color: #1D9E75;
+    font-size: 15px;
+    font-weight: 600;
+  }
+  .dim-line .dim-percent {
+    margin-left: 6px;
+    font-size: 11px;
+    padding: 2px 6px;
+    background: #E1F5EE;
+    color: #0F6E56;
+    border-radius: 4px;
+    font-weight: 500;
+  }
+  .dim-line .dim-percent.low { background: #f5f4ee; color: #888780; }
+  .dim-line .dim-percent.high { background: #1D9E75; color: white; }
+
+  /* Section vendeur */
+  .vendeur-section-title {
+    font-size: 13px;
+    color: #5f5e5a;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin: 24px 0 10px 0;
+    padding-bottom: 6px;
+    border-bottom: 1px solid #e3e1d8;
+  }
+  .vendeur-card {
+    background: white;
+    border: 1px solid #e3e1d8;
+    border-radius: 12px;
+    padding: 12px 14px;
+    margin-bottom: 10px;
+  }
+  .vendeur-card-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+    padding-bottom: 8px;
+    border-bottom: 0.5px solid #f1efe8;
+  }
+  .vendeur-card-header .pastille {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .vendeur-card-header .nom {
+    font-size: 14px;
+    font-weight: 500;
+  }
+  .vendeur-card-header .role-tag {
+    margin-left: auto;
+    font-size: 10px;
+    padding: 1px 5px;
+    background: #f1efe8;
+    color: #5f5e5a;
+    border-radius: 3px;
+  }
+  .vendeur-card .dim-table {
+    display: grid;
+    grid-template-columns: 1.4fr 1fr 1fr 1fr;
+    gap: 4px 6px;
+    font-size: 12px;
+    color: #5f5e5a;
+    font-variant-numeric: tabular-nums;
+  }
+  .vendeur-card .dim-table .col-label {
+    color: #888780;
+    font-size: 11px;
+  }
+  .vendeur-card .dim-table .col-header {
+    font-size: 10px;
+    text-transform: uppercase;
+    color: #888780;
+    letter-spacing: 0.3px;
+    border-bottom: 0.5px solid #f1efe8;
+    padding-bottom: 3px;
+    text-align: right;
+  }
+  .vendeur-card .dim-table .val {
+    text-align: right;
+    color: #2c2c2a;
+  }
+  .vendeur-card .dim-table .val.highlight {
+    color: #1D9E75;
+    font-weight: 600;
+  }
+  .vendeur-card .dim-table .val.raf {
+    color: #5f5e5a;
+    font-style: italic;
+  }
+  .vendeur-card .pct-bar {
+    height: 4px;
+    background: #f1efe8;
+    border-radius: 2px;
+    overflow: hidden;
+    margin-top: 8px;
+  }
+  .vendeur-card .pct-bar-fill {
+    height: 100%;
+    background: #1D9E75;
+    border-radius: 2px;
+    transition: width 0.4s;
+  }
+  .vendeur-card .pct-text {
+    text-align: right;
+    font-size: 11px;
+    color: #5f5e5a;
+    margin-top: 4px;
+  }
+
+  /* ────────────────────────────────────────────────────────────
+     En-tête vendeur sélectionné
+     ──────────────────────────────────────────────────────────── */
+  .vendeur-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 0;
+    margin-bottom: 16px;
+    border-bottom: 0.5px solid #e3e1d8;
+  }
+  .vendeur-header .pastille {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+  }
+  .vendeur-header .nom {
+    font-size: 16px;
+    font-weight: 500;
+  }
+  .vendeur-header .change-btn {
+    margin-left: auto;
+    font-size: 12px;
+    color: #1D9E75;
+    padding: 6px 10px;
+  }
+</style>
+</head>
+<body>
+
+<div id="app">
+  <!-- Topbar -->
+  <div class="topbar">
+    <div class="topbar-left">
+      <span>📍</span>
+      <span id="topbar-magasin">Suivi CA</span>
+    </div>
+    <div class="topbar-right">
+      <button id="btn-maj" class="btn-maj" onclick="appliquerMaj()" title="Vérifier les mises à jour" aria-label="Mettre à jour">
+        <span class="btn-maj-icon">↻</span>
+        <span class="btn-maj-pastille" id="btn-maj-pastille"></span>
+      </button>
+      <span class="dot" id="status-dot"></span>
+      <span id="status-text">En ligne</span>
+    </div>
+  </div>
+
+  <!-- Écran 0 : code d'accès magasin -->
+  <div id="screen-code" class="screen">
+    <p class="screen-title">Premier lancement</p>
+    <h2 class="screen-heading">Code d'accès magasin</h2>
+
+    <p style="font-size: 13px; color: #5f5e5a; margin-bottom: 20px; line-height: 1.5;">
+      Saisis le code d'accès qui t'a été communiqué pour ton magasin.
+    </p>
+
+    <div class="field" style="position: relative;">
+      <input type="password" id="code-input" class="field-input-text" placeholder="••••••" 
+             autocomplete="new-password" name="code-acces-narbonne-ca"
+             autocapitalize="characters" spellcheck="false"
+             style="text-transform: uppercase; font-size: 17px; letter-spacing: 2px; padding-right: 48px;">
+      <button type="button" id="code-toggle" onclick="toggleCodeVisibility()" 
+              style="position: absolute; right: 4px; top: 4px; width: 40px; height: 40px;
+                     border: none; background: transparent; cursor: pointer;
+                     display: flex; align-items: center; justify-content: center;
+                     border-radius: 6px; color: #888780; font-size: 16px;">
+        👁
+      </button>
+    </div>
+
+    <div id="code-error" style="color: #d85a30; font-size: 13px; margin-bottom: 16px; min-height: 18px;"></div>
+
+    <button class="btn-primary" id="btn-code" onclick="validerCodeAcces()">
+      Accéder
+    </button>
+  </div>
+
+  <!-- Écran 1 : sélection magasin (réservé au mode admin) -->
+  <div id="screen-magasin" class="screen">
+    <p class="screen-title">Premier lancement</p>
+    <h2 class="screen-heading">Quel magasin ?</h2>
+    <div class="btn-list" id="liste-magasins">
+      <!-- Les boutons sont générés en JS depuis MAGASINS -->
+    </div>
+  </div>
+
+  <!-- Écran 2 : sélection vendeur -->
+  <div id="screen-vendeur" class="screen">
+    <p class="screen-title" id="vendeur-magasin-label">—</p>
+    <h2 class="screen-heading">Qui saisit ?</h2>
+
+    <!-- Mini-récap magasin (chargé en // de la liste des vendeurs) -->
+    <div class="quick-recap" id="quick-recap">
+      <div class="quick-recap-loading"><span class="loader-spinner"></span> Chargement du récap…</div>
+    </div>
+
+    <div class="btn-list" id="liste-vendeurs">
+      <div class="loading">Chargement des vendeurs…</div>
+    </div>
+    <button class="btn-secondary" onclick="changerMagasin()">Changer de magasin</button>
+  </div>
+
+  <!-- Écran 3 : saisies (CA jour / Commande / EGT) -->
+  <div id="screen-saisie" class="screen">
+    <div class="vendeur-header">
+      <span class="pastille" id="saisie-pastille"></span>
+      <span class="nom" id="saisie-nom-vendeur">—</span>
+      <button class="change-btn" onclick="changerVendeur()">Changer</button>
+    </div>
+
+    <!-- Onglets pour basculer entre les types de saisie -->
+    <div class="tabs">
+      <button class="tab active" id="tab-ca" onclick="switchTab('ca')">Cumul mois</button>
+      <button class="tab" id="tab-cmd" onclick="switchTab('cmd')">Commande</button>
+      <button class="tab" id="tab-egt" onclick="switchTab('egt')">EGT</button>
+      <button class="tab" id="tab-carte" onclick="switchTab('carte')">Carte</button>
+      <button class="tab" id="tab-encours" onclick="switchTab('encours')">Cmd en cours</button>
+      <button class="tab" id="tab-recap" onclick="switchTab('recap')">Récap</button>
+      <button class="tab" id="tab-historique" onclick="switchTab('historique')">Historique</button>
+    </div>
+
+    <!-- ─── Form Cumul mois (remplace ancien CA jour) ─── -->
+    <div class="form-section active" id="form-ca">
+      <p class="screen-title">Cumul du mois en cours</p>
+      <h2 class="screen-heading">CA réalisé</h2>
+
+      <div class="field-hint" style="margin-bottom: 12px; padding: 10px 12px; background: #FAEEDA; border-radius: 8px; color: #854F0B; font-size: 12px; line-height: 1.4;">
+        <strong>💡 Nouvelle logique :</strong> tu saisis le <strong>cumul total</strong> de ton mois (pas le CA du jour).
+        Chaque nouvelle saisie remplace la précédente. Ex : tape 21 500 € si c'est ton cumul ACC depuis le 1er du mois.
+      </div>
+
+      <div class="field">
+        <label class="field-label">Cumul Accessoires HT du mois</label>
+        <div class="field-input">
+          <input type="number" id="input-acc" inputmode="decimal" placeholder="0" min="0" step="1">
+          <span class="currency">€</span>
+        </div>
+      </div>
+
+      <div class="field">
+        <label class="field-label">Cumul Atelier du mois</label>
+        <div class="field-input">
+          <input type="number" id="input-atelier" inputmode="decimal" placeholder="0" min="0" step="1">
+          <span class="currency">€</span>
+        </div>
+      </div>
+
+      <div class="recap" id="recap-cumul" style="display:none;">
+        <div class="recap-line"><span>Dernier cumul enregistré</span></div>
+        <div class="recap-line">
+          <span class="recap-total" id="recap-acc">— €</span>
+          <span class="recap-total" id="recap-atelier">— €</span>
+        </div>
+      </div>
+
+      <button class="btn-primary" id="btn-valider" onclick="validerSaisie()">
+        Enregistrer le cumul
+      </button>
+    </div>
+
+    <!-- ─── Form Commande à facturer ─── -->
+    <div class="form-section" id="form-cmd">
+      <p class="screen-title">Nouvelle commande</p>
+      <h2 class="screen-heading">Commande à facturer</h2>
+
+      <div class="field">
+        <label class="field-label">Client</label>
+        <input type="text" id="cmd-client" class="field-input-text" placeholder="DURAND" autocomplete="off">
+      </div>
+
+      <div class="field">
+        <label class="field-label">Désignation</label>
+        <input type="text" id="cmd-denom" class="field-input-text" placeholder="Pose attelage + faisceau" autocomplete="off">
+      </div>
+
+      <div class="field">
+        <label class="field-label">Date de pose (optionnel)</label>
+        <input type="date" id="cmd-date-pose" class="field-input-text">
+      </div>
+
+      <div class="field-row">
+        <div class="field">
+          <label class="field-label">ACC HT</label>
+          <div class="field-input">
+            <input type="number" id="cmd-acc" inputmode="decimal" placeholder="0" min="0" step="1">
+            <span class="currency">€</span>
+          </div>
+        </div>
+        <div class="field">
+          <label class="field-label">Atelier</label>
+          <div class="field-input">
+            <input type="number" id="cmd-atelier" inputmode="decimal" placeholder="0" min="0" step="1">
+            <span class="currency">€</span>
+          </div>
+        </div>
+      </div>
+
+      <label class="cmd-facturable-row" for="cmd-facturable">
+        <input type="checkbox" id="cmd-facturable" class="cmd-facturable-checkbox">
+        <span class="cmd-facturable-text">
+          <strong>À facturer ce mois</strong>
+          <small>Si coché, la commande compte dans le potentiel du mois courant</small>
+        </span>
+      </label>
+
+      <div class="recap" id="recap-cmd">
+        <div class="recap-line"><span>Potentiel du mois après cette commande</span></div>
+        <div class="recap-line">
+          <span class="recap-total" id="recap-cmd-acc">— €</span>
+          <span class="recap-total" id="recap-cmd-atelier">— €</span>
+        </div>
+      </div>
+
+      <button class="btn-primary" id="btn-valider-cmd" onclick="validerCommande()">
+        Enregistrer la commande
+      </button>
+    </div>
+
+    <!-- ─── Form EGT ─── -->
+    <div class="form-section" id="form-egt">
+      <p class="screen-title">Vente additionnelle atelier</p>
+      <h2 class="screen-heading">Nouvelle EGT</h2>
+
+      <!-- Mini-bandeau de progression EGT du vendeur -->
+      <div class="egt-progress" id="egt-progress">
+        <div class="egt-progress-loading">Chargement progression…</div>
+      </div>
+
+      <div class="field">
+        <label class="field-label">Client</label>
+        <input type="text" id="egt-client" class="field-input-text" placeholder="MARTIN" autocomplete="off">
+      </div>
+
+      <div class="field">
+        <label class="field-label">Désignation</label>
+        <input type="text" id="egt-denom" class="field-input-text" placeholder="plaquettes + filtre habitacle" autocomplete="off">
+      </div>
+
+      <div class="field">
+        <label class="field-label">Montant ACC HT</label>
+        <div class="field-input">
+          <input type="number" id="egt-acc" inputmode="decimal" placeholder="0" min="0" step="1">
+          <span class="currency">€</span>
+        </div>
+      </div>
+
+      <div class="recap" id="recap-egt">
+        <div class="recap-line"><span>Cumul EGT du mois après cette saisie</span></div>
+        <div class="recap-line">
+          <span class="recap-total" id="recap-egt-total">— €</span>
+        </div>
+      </div>
+
+      <button class="btn-primary" id="btn-valider-egt" onclick="validerEgt()">
+        Enregistrer l'EGT
+      </button>
+    </div>
+
+    <!-- ─── Form Carte fidélité ─── -->
+    <div class="form-section" id="form-carte">
+      <div class="field">
+        <label class="field-label">Cartes fidélité vendues aujourd'hui</label>
+        <div class="field-hint" style="margin-bottom: 8px;">
+          Saisis simplement le nombre de nouvelles cartes signées dans la journée. Le suivi se fait au niveau magasin.
+        </div>
+        <div class="qty-stepper">
+          <button class="qty-btn" onclick="ajustQty(-1)" id="qty-minus">−</button>
+          <input type="number" id="field-nb-cartes" class="qty-input" value="1" min="1" max="50" step="1" inputmode="numeric">
+          <button class="qty-btn" onclick="ajustQty(1)" id="qty-plus">+</button>
+        </div>
+      </div>
+
+      <div class="recap-objectif" id="recap-objectif-cartes" style="display:none;">
+        <div class="recap-objectif-line">
+          <span>Cumul du mois</span>
+          <span id="recap-cumul-cartes" class="bold">—</span>
+        </div>
+        <div class="recap-objectif-line">
+          <span>Objectif</span>
+          <span id="recap-objectif-cartes-val">—</span>
+        </div>
+        <div class="recap-objectif-line">
+          <span>Reste à faire</span>
+          <span id="recap-raf-cartes" class="italic">—</span>
+        </div>
+      </div>
+
+      <button class="btn-primary" id="btn-valider-carte" onclick="validerCarte()">
+        Enregistrer
+      </button>
+    </div>
+
+    <!-- ─── Form Commandes en cours ─── -->
+    <div class="form-section" id="form-encours">
+      <div class="cmd-list-header">
+        <span class="cmd-list-title">Commandes à facturer</span>
+        <button class="recap-refresh" onclick="chargerCommandesEnCours()">⟳ Actualiser</button>
+      </div>
+
+      <div class="encours-search-wrap">
+        <input type="text" id="encours-search" class="encours-search-input"
+               placeholder="🔍 Rechercher par nom de client"
+               autocomplete="off"
+               oninput="filtrerCommandesParClient()">
+        <button class="encours-search-clear" id="encours-search-clear"
+                onclick="reinitRechercheClient()" style="display:none;">×</button>
+      </div>
+
+      <div id="encours-content">
+        <div class="recap-loading"><span class="loader-spinner"></span> Chargement…</div>
+      </div>
+    </div>
+
+    <!-- ─── Form Récap ─── -->
+    <div class="form-section" id="form-recap">
+      <div class="recap-header">
+        <span class="recap-title" id="recap-magasin-title">Récap —</span>
+        <button class="recap-refresh" onclick="chargerRecap()">⟳ Actualiser</button>
+      </div>
+
+      <div id="recap-content">
+        <div class="recap-loading"><span class="loader-spinner"></span> Chargement…</div>
+      </div>
+    </div>
+
+    <!-- ─── Form Historique ─── -->
+    <div class="form-section" id="form-historique">
+      <div class="recap-header">
+        <span class="recap-title">Historique du mois</span>
+        <button class="recap-refresh" onclick="chargerHistorique()">⟳ Actualiser</button>
+      </div>
+
+      <div class="historique-filter">
+        <button class="historique-filter-btn active" id="hist-filter-tous" onclick="filtreHistorique('tous')">
+          Tous les vendeurs
+        </button>
+        <button class="historique-filter-btn" id="hist-filter-moi" onclick="filtreHistorique('moi')">
+          Moi seulement
+        </button>
+      </div>
+
+      <div id="historique-content">
+        <div class="recap-loading"><span class="loader-spinner"></span> Chargement…</div>
+      </div>
+    </div>
+
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- Modal de confirmation de mise à jour -->
+<div class="maj-modal-backdrop" id="maj-modal-backdrop">
+  <div class="maj-modal">
+    <div class="maj-modal-title">Mise à jour disponible</div>
+    <div class="maj-modal-body" id="maj-modal-body">
+      Une nouvelle version de l'application est prête. Recharger pour l'installer ?
+    </div>
+    <div class="maj-modal-actions">
+      <button class="maj-modal-btn-secondary" onclick="fermerModalMaj()">Plus tard</button>
+      <button class="maj-modal-btn-primary" onclick="forcerMaj()">Mettre à jour</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ════════════════════════════════════════════════════════════
+// CONFIGURATION
+// ════════════════════════════════════════════════════════════
+const API_URL = 'https://script.google.com/macros/s/AKfycbziCZ_zF3FuoBfMNXpkBE_xL95ix-m0XTVyYEq4VZyLLABsnex8glEl0a8P_xv05w7c/exec';
+
+// Version locale de l'app (à incrémenter à chaque déploiement).
+// Format: YYYYMMDD-HHMM pour faciliter la comparaison chronologique.
+const APP_VERSION = '20260702-1400';
+// Intervalle de vérification des MAJ en arrière-plan (5 minutes)
+const VERIF_MAJ_INTERVAL_MS = 5 * 60 * 1000;
+
+const MAGASINS = [
+  { code: '132', nom: 'Montpellier' },
+  { code: '118', nom: 'Aubagne' },
+  { code: '110', nom: 'Les Pennes Mirabeau' },
+  { code: '130', nom: 'St Étienne' },
+  { code: '136', nom: 'Lyon' },
+  { code: 'E51', nom: 'Annecy' },
+  { code: '10G', nom: 'Mâcon' },
+  { code: '10H', nom: 'Lyon OUTDOOR' }
+];
+
+// Codes d'accès par magasin (modérément sécurisé, en clair dans le JS)
+// Si tu changes un code ici, les utilisateurs devront retaper le nouveau.
+const CODES_ACCES = {
+  'MTP132': '132',
+  'AUB118': '118',
+  'PMI110': '110',
+  'STE130': '130',
+  'LYO136': '136',
+  'ANN-E51': 'E51',
+  'MAC10G': '10G',
+  'OUT10H': '10H'
+};
+
+// Code maître admin : ouvre la liste complète des 8 magasins
+const CODE_ADMIN = 'NARBADMIN';
+
+// ════════════════════════════════════════════════════════════
+// État global
+// ════════════════════════════════════════════════════════════
+const state = {
+  magasin: null,    // { code, nom }
+  vendeurs: [],     // chargés depuis config.get
+  vendeur: null,    // vendeur actuellement sélectionné
+};
+
+// ════════════════════════════════════════════════════════════
+// API
+// ════════════════════════════════════════════════════════════
+
+/**
+ * Appel GET au backend Apps Script.
+ * Params : objet avec action et paramètres
+ */
+// Timeout API : au-delà de 45s on abandonne et on affiche un message clair.
+// Le backend Apps Script a un timeout serveur de 60s, on prend une marge.
+const API_TIMEOUT_MS = 45000;
+
+/**
+ * Wrapper fetch avec timeout automatique et messages d'erreur explicites.
+ * Renvoie une erreur avec un message compréhensible pour l'utilisateur final,
+ * pas un code HTTP nu ou un "PB journal" cryptique.
+ */
+async function fetchWithTimeout_(url, options) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
+
+  try {
+    const r = await fetch(url, Object.assign({}, options, { signal: controller.signal }));
+    clearTimeout(timeoutId);
+
+    if (!r.ok) {
+      // HTTP 4xx / 5xx : le serveur a répondu mais avec une erreur
+      if (r.status === 429) throw new Error('Trop de demandes en même temps, réessaie dans quelques secondes');
+      if (r.status === 500) throw new Error('Le serveur a rencontré une erreur, réessaie');
+      if (r.status === 503) throw new Error('Le serveur est momentanément indisponible');
+      throw new Error('Le serveur a répondu HTTP ' + r.status);
+    }
+
+    return r;
+  } catch (err) {
+    clearTimeout(timeoutId);
+
+    // Timeout ou abandon
+    if (err.name === 'AbortError') {
+      throw new Error('Réponse trop longue (>45s). Vérifie ta connexion, réessaie ou clique sur ↻');
+    }
+    // Réseau indisponible (mode avion, WiFi coupé…)
+    if (err.message === 'Failed to fetch' || err.message.includes('NetworkError')) {
+      throw new Error('Pas de connexion internet. Vérifie ton WiFi/4G puis réessaie');
+    }
+    // Autres erreurs déjà formatées → laisse passer
+    throw err;
+  }
+}
+
+async function apiGet(params) {
+  const url = new URL(API_URL);
+  Object.keys(params).forEach(k => url.searchParams.append(k, params[k]));
+  const r = await fetchWithTimeout_(url.toString(), { method: 'GET' });
+  return r.json();
+}
+
+/**
+ * Appel POST au backend Apps Script.
+ * IMPORTANT : Content-Type text/plain pour contourner CORS.
+ * Le backend parse le body comme JSON via e.postData.contents.
+ */
+async function apiPost(payload) {
+  const r = await fetchWithTimeout_(API_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify(payload),
+    redirect: 'follow'
+  });
+  return r.json();
+}
+
+/**
+ * Rend un bloc d'erreur explicite avec un bouton "Réessayer".
+ * Utilisé quand une lecture échoue (Récap, Historique, Cmd en cours…).
+ * Le callback est le nom de la fonction à rappeler au clic.
+ */
+function renderErreurRetry_(containerId, errMessage, retryFnName) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  el.innerHTML =
+    '<div class="load-error">' +
+    '  <div class="load-error-msg">⚠️ ' + escapeHtml_(errMessage || 'Erreur inconnue') + '</div>' +
+    '  <button class="load-error-retry" onclick="' + retryFnName + '()">↻ Réessayer</button>' +
+    '</div>';
+}
+
+// ════════════════════════════════════════════════════════════
+// Navigation entre écrans
+// ════════════════════════════════════════════════════════════
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+// ════════════════════════════════════════════════════════════
+// Système de mise à jour automatique
+// Compare la version locale avec la version actuelle servie par GitHub Pages.
+// Si nouvelle version dispo → pastille rouge sur le bouton MAJ.
+// ════════════════════════════════════════════════════════════
+
+let _verifMajInterval = null;
+let _majDispo = false;
+
+/**
+ * Vérifie en arrière-plan si une nouvelle version est dispo.
+ * Stratégie : on télécharge le HEAD du index.html actuel (avec un cache-buster),
+ * on extrait sa version (APP_VERSION = '...'), et on la compare à la version
+ * actuellement exécutée (celle chargée en mémoire).
+ */
+async function verifierMaj() {
+  try {
+    // Cache-buster timestamp pour bypass le service worker et le cache navigateur
+    const url = window.location.pathname + '?v=' + Date.now();
+    const resp = await fetch(url, { cache: 'no-store' });
+    if (!resp.ok) return;
+    const html = await resp.text();
+    // Extraire APP_VERSION du HTML servi
+    const match = html.match(/const APP_VERSION\s*=\s*['"]([^'"]+)['"]/);
+    if (!match) return;
+    const versionServie = match[1];
+
+    if (versionServie !== APP_VERSION) {
+      _majDispo = true;
+      document.getElementById('btn-maj').classList.add('has-update');
+    }
+  } catch (err) {
+    // silencieux : si le réseau ne répond pas, on ne fait rien
+  }
+}
+
+/**
+ * Au clic sur le bouton MAJ dans la topbar.
+ * Comportement simplifié (juin 2026) : 1 clic = MAJ directe sans modal.
+ * Vide le cache du service worker + caches navigateur + recharge avec cache-buster.
+ * Aucune friction pour l'utilisateur, qui n'a pas besoin de maîtriser Ctrl+F5.
+ */
+async function appliquerMaj() {
+  const btn = document.getElementById('btn-maj');
+  btn.classList.add('spinning');
+  showToast('Mise à jour en cours…', 'success');
+
+  try {
+    // Désinscrire le service worker pour casser le cache PWA
+    if ('serviceWorker' in navigator) {
+      const regs = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(regs.map(r => r.unregister()));
+    }
+    // Vider les CacheStorage du navigateur
+    if ('caches' in window) {
+      const keys = await caches.keys();
+      await Promise.all(keys.map(k => caches.delete(k)));
+    }
+  } catch (err) {
+    // si ça échoue, on recharge quand même
+  }
+
+  // Reload avec cache-buster (laisse le toast s'afficher 800 ms avant)
+  setTimeout(() => {
+    window.location.href = window.location.pathname + '?v=' + Date.now();
+  }, 800);
+}
+
+function fermerModalMaj() {
+  document.getElementById('maj-modal-backdrop').classList.remove('visible');
+}
+
+/**
+ * Force la mise à jour : alias historique de appliquerMaj, conservé pour
+ * compatibilité avec le modal (qui n'est plus utilisé mais reste dans le HTML).
+ */
+async function forcerMaj() {
+  fermerModalMaj();
+  return appliquerMaj();
+}
+
+/**
+ * Démarrer les vérifications périodiques.
+ * Première vérif immédiate (5s après le chargement),
+ * puis toutes les VERIF_MAJ_INTERVAL_MS.
+ */
+function demarrerVerifMaj() {
+  // Première vérif différée (laisser l'app démarrer d'abord)
+  setTimeout(() => verifierMaj(), 5000);
+  // Vérif périodique
+  if (_verifMajInterval) clearInterval(_verifMajInterval);
+  _verifMajInterval = setInterval(() => verifierMaj(), VERIF_MAJ_INTERVAL_MS);
+  // Vérif quand l'onglet redevient visible (cas mobile : on ouvre l'app après plusieurs heures)
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      verifierMaj();
+    }
+  });
+}
+
+// ════════════════════════════════════════════════════════════
+// Démarrage
+// ════════════════════════════════════════════════════════════
+function init() {
+  // Restaurer le magasin depuis localStorage si déjà choisi (code d'accès déjà validé)
+  const magCode = localStorage.getItem('magasin_code');
+  if (magCode) {
+    const mag = MAGASINS.find(m => m.code === magCode);
+    if (mag) {
+      state.magasin = mag;
+      document.getElementById('topbar-magasin').textContent = mag.nom;
+      chargerVendeurs();
+      return;
+    }
+  }
+  // Sinon, écran de saisie du code d'accès
+  document.getElementById('code-input').value = '';
+  document.getElementById('code-error').textContent = '';
+  showScreen('screen-code');
+  // Vider et focus avec plusieurs passes pour contrer l'autofill agressif de Chrome
+  // (Chrome remplit le champ APRÈS le rendu, parfois plusieurs fois)
+  viderCodeInput_();
+}
+
+/**
+ * Vide le champ code-input avec plusieurs passes différées.
+ * Chrome est très agressif sur l'autofill : il remplit le champ après le rendu,
+ * parfois plusieurs fois. On force le vidage 5 fois à intervalles différents.
+ */
+function viderCodeInput_() {
+  const input = document.getElementById('code-input');
+  input.value = '';
+  // Plusieurs passes pour contrer l'autofill (Chrome est tenace)
+  [50, 200, 500, 1000, 2000].forEach(delay => {
+    setTimeout(() => {
+      const inp = document.getElementById('code-input');
+      if (inp && inp.value && !document.activeElement === inp) {
+        inp.value = '';
+      } else if (inp && !inp.matches(':focus')) {
+        inp.value = '';
+      }
+    }, delay);
+  });
+  // Focus après court délai
+  setTimeout(() => input.focus(), 100);
+}
+
+/**
+ * Bascule l'affichage du code entre visible (text) et caché (password).
+ */
+function toggleCodeVisibility() {
+  const input = document.getElementById('code-input');
+  const btn = document.getElementById('code-toggle');
+  if (input.type === 'password') {
+    input.type = 'text';
+    btn.textContent = '🙈';
+  } else {
+    input.type = 'password';
+    btn.textContent = '👁';
+  }
+  input.focus();
+}
+
+/**
+ * Valider le code d'accès saisi.
+ * Si OK → ouvre le magasin correspondant.
+ * Si admin → ouvre la liste des 8 magasins.
+ * Sinon → message d'erreur.
+ */
+function validerCodeAcces() {
+  const code = document.getElementById('code-input').value.trim().toUpperCase();
+  const errorEl = document.getElementById('code-error');
+
+  if (!code) {
+    errorEl.textContent = 'Saisir le code d\'accès';
+    return;
+  }
+
+  // Mode admin : ouvre la liste des 8 magasins
+  if (code === CODE_ADMIN) {
+    errorEl.textContent = '';
+    localStorage.setItem('admin_mode', '1');
+    renderSelectionMagasin();
+    return;
+  }
+
+  // Code magasin classique
+  const magCode = CODES_ACCES[code];
+  if (!magCode) {
+    errorEl.textContent = 'Code inconnu, vérifie auprès de ton Tribu Manager';
+    return;
+  }
+
+  const mag = MAGASINS.find(m => m.code === magCode);
+  if (!mag) {
+    errorEl.textContent = 'Magasin introuvable, contacte le support';
+    return;
+  }
+
+  // OK : on mémorise et on enchaîne sur la sélection vendeur
+  errorEl.textContent = '';
+  state.magasin = mag;
+  localStorage.setItem('magasin_code', mag.code);
+  document.getElementById('topbar-magasin').textContent = mag.nom;
+  chargerVendeurs();
+}
+
+function renderSelectionMagasin() {
+  const liste = document.getElementById('liste-magasins');
+  liste.innerHTML = '';
+  MAGASINS.forEach(mag => {
+    const btn = document.createElement('button');
+    btn.className = 'btn-choice';
+    btn.innerHTML = '<span>🏪</span><span>' + mag.nom + '</span><span class="role-tag">' + mag.code + '</span>';
+    btn.onclick = () => choisirMagasin(mag);
+    liste.appendChild(btn);
+  });
+  showScreen('screen-magasin');
+}
+
+function choisirMagasin(mag) {
+  state.magasin = mag;
+  localStorage.setItem('magasin_code', mag.code);
+  document.getElementById('topbar-magasin').textContent = mag.nom;
+  chargerVendeurs();
+}
+
+function changerMagasin() {
+  localStorage.removeItem('magasin_code');
+  localStorage.removeItem('vendeur_code');
+  state.magasin = null;
+  state.vendeur = null;
+  state.vendeurs = [];
+
+  // Si en mode admin, retour à la liste des magasins ; sinon, retour au code d'accès
+  if (localStorage.getItem('admin_mode') === '1') {
+    renderSelectionMagasin();
+  } else {
+    document.getElementById('code-input').value = '';
+    // Remettre en mode "password" si l'utilisateur avait révélé le code
+    const input = document.getElementById('code-input');
+    if (input.type === 'text') {
+      input.type = 'password';
+      document.getElementById('code-toggle').textContent = '👁';
+    }
+    document.getElementById('code-error').textContent = '';
+    showScreen('screen-code');
+    viderCodeInput_();
+  }
+}
+
+// ════════════════════════════════════════════════════════════
+// Chargement des vendeurs
+// ════════════════════════════════════════════════════════════
+async function chargerVendeurs() {
+  document.getElementById('vendeur-magasin-label').textContent = state.magasin.nom;
+  document.getElementById('liste-vendeurs').innerHTML = '<div class="loading">Chargement des vendeurs…</div>';
+  document.getElementById('quick-recap').innerHTML = '<div class="quick-recap-loading"><span class="loader-spinner"></span> Chargement du récap…</div>';
+  showScreen('screen-vendeur');
+
+  // Lancer le quick-recap en parallèle (ne bloque pas)
+  chargerQuickRecap();
+
+  try {
+    const r = await apiGet({ action: 'config.get', magasin_code: state.magasin.code });
+    if (!r.ok) throw new Error(r.error.message);
+    state.vendeurs = r.data.vendeurs;
+    renderListeVendeurs();
+  } catch (err) {
+    document.getElementById('liste-vendeurs').innerHTML =
+      '<div class="loading" style="color:#d85a30">Erreur : ' + err.message + '</div>';
+    setStatusError();
+  }
+}
+
+/**
+ * Charge le mini-récap (atterrissage magasin) en parallèle.
+ * En cas d'erreur, affiche un état d'erreur explicite avec bouton retry
+ * (au lieu de masquer silencieusement le bandeau, qui laissait le DM
+ * dans l'ignorance et le forçait à recharger toute l'app).
+ */
+async function chargerQuickRecap() {
+  const el = document.getElementById('quick-recap');
+  // Assurer que le bandeau est visible (peut avoir été masqué avant)
+  el.style.display = '';
+  el.innerHTML = '<div class="quick-recap-loading"><span class="loader-spinner"></span> Chargement du récap…</div>';
+
+  try {
+    const r = await apiGet({ action: 'dashboard.get', magasin_code: state.magasin.code });
+    if (!r.ok) throw new Error(r.error.message || 'Erreur backend');
+    renderQuickRecap(r.data.magasin);
+  } catch (err) {
+    el.innerHTML =
+      '<div class="quick-recap-error">' +
+      '  <div class="quick-recap-error-msg">⚠️ ' + escapeHtml_(err.message || 'Erreur') + '</div>' +
+      '  <button class="quick-recap-retry" onclick="chargerQuickRecap()">↻ Réessayer</button>' +
+      '</div>';
+  }
+}
+
+function renderQuickRecap(m) {
+  // Calcul des pourcentages individuels
+  const pctAcc = m.prev_acc > 0 ? Math.round(m.atterrissage_acc / m.prev_acc * 100) : 0;
+  const pctMo = m.prev_mo > 0 ? Math.round(m.atterrissage_mo / m.prev_mo * 100) : 0;
+  const pctEgt = m.objectif_egt > 0 ? Math.round(m.cumul_egt / m.objectif_egt * 100) : 0;
+
+  // Moyenne pondérée pour le donut : atterrissage total / prev total (ACC + Atelier)
+  const attTot = m.atterrissage_acc + m.atterrissage_mo;
+  const prevTot = m.prev_acc + m.prev_mo;
+  const pctGlobal = prevTot > 0 ? Math.round(attTot / prevTot * 100) : 0;
+
+  function pctClass(p) {
+    if (p >= 100) return 'high';
+    if (p >= 25) return '';
+    return 'low';
+  }
+
+  // Donut SVG : circonférence = 2 × π × r
+  // On utilise r = 45 (rayon), donc circonférence ≈ 282.74
+  const R = 45;
+  const CIRC = 2 * Math.PI * R;
+  // % à afficher dans l'arc : on plafonne à 100 pour la longueur visuelle
+  const pctArc = Math.min(100, pctGlobal);
+  const dashOffset = CIRC * (1 - pctArc / 100);
+  const donutColorClass = pctClass(pctGlobal);
+
+  document.getElementById('quick-recap').innerHTML = `
+    <div class="quick-recap-title">Atterrissage · ${formatMois_(m.periode)}</div>
+    
+    <div class="donut-wrap">
+      <svg class="donut-svg" viewBox="0 0 110 110" aria-label="Atterrissage global ${pctGlobal}%">
+        <circle class="donut-track" cx="55" cy="55" r="${R}"></circle>
+        <circle class="donut-progress ${donutColorClass}" cx="55" cy="55" r="${R}"
+                stroke-dasharray="${CIRC}"
+                stroke-dashoffset="${dashOffset}"></circle>
+        <text class="donut-center-label" x="55" y="38">Global</text>
+        <text class="donut-center-pct ${pctGlobal >= 100 ? 'high' : ''}" x="55" y="56">${pctGlobal}%</text>
+        <text class="donut-center-amount" x="55" y="76">${formatEuro(attTot)}</text>
+      </svg>
+    </div>
+    
+    <div class="quick-recap-grid">
+      <div class="quick-recap-cell">
+        <div class="quick-recap-cell-label">ACC</div>
+        <div class="quick-recap-cell-value">${formatEuro(m.atterrissage_acc)}</div>
+        <div class="quick-recap-cell-pct ${pctClass(pctAcc)}">${pctAcc}%</div>
+      </div>
+      <div class="quick-recap-cell">
+        <div class="quick-recap-cell-label">Atelier</div>
+        <div class="quick-recap-cell-value">${formatEuro(m.atterrissage_mo)}</div>
+        <div class="quick-recap-cell-pct ${pctClass(pctMo)}">${pctMo}%</div>
+      </div>
+      <div class="quick-recap-cell">
+        <div class="quick-recap-cell-label">EGT</div>
+        <div class="quick-recap-cell-value">${formatEuro(m.cumul_egt)}</div>
+        <div class="quick-recap-cell-pct ${pctClass(pctEgt)}">${pctEgt}%</div>
+      </div>
+    </div>
+    <div class="quick-recap-footer">
+      <div class="quick-recap-footer-line">
+        <span class="label">Accessoires</span>
+        <span>Prév ${formatEuro(m.prev_acc)} · RAF ${formatEuro(m.raf_acc)}</span>
+      </div>
+      <div class="quick-recap-footer-line">
+        <span class="label">Atelier</span>
+        <span>Prév ${formatEuro(m.prev_mo)} · RAF ${formatEuro(m.raf_mo)}</span>
+      </div>
+      ${renderDmIndicator_(m)}
+    </div>
+  `;
+}
+
+/**
+ * Indicateur DM dans le bandeau atterrissage.
+ * Si dm_ok = true (atterrissage mag >= 90% prev mag ACC), affiche "DM ✓"
+ * sinon affiche "DM ⚠ bonus bloqué".
+ */
+function renderDmIndicator_(m) {
+  if (!m.prev_acc) return '';  // Pas de prev, pas d'indicateur
+
+  if (m.dm_ok) {
+    return `
+      <div class="quick-recap-footer-line" style="margin-top: 6px; padding-top: 6px; border-top: 0.5px dashed #d6e9e0;">
+        <span class="label" style="color: #0F6E56;">Seuil DM (90%)</span>
+        <span style="color: #0F6E56; font-weight: 600;">${m.dm_pct}% ✓ Bonus actif</span>
+      </div>
+    `;
+  } else {
+    return `
+      <div class="quick-recap-footer-line" style="margin-top: 6px; padding-top: 6px; border-top: 0.5px dashed #d6e9e0;">
+        <span class="label" style="color: #BA7517;">Seuil DM (90%)</span>
+        <span style="color: #BA7517; font-weight: 600;">${m.dm_pct}% ⚠ Bonus bloqué</span>
+      </div>
+    `;
+  }
+}
+
+/**
+ * Convertit "2026-06" en "Juin 2026" pour l'affichage.
+ */
+function formatMois_(periode) {
+  const mois = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
+                'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
+  const parts = periode.split('-');
+  if (parts.length !== 2) return periode;
+  const idx = parseInt(parts[1], 10) - 1;
+  return mois[idx] + ' ' + parts[0];
+}
+
+function renderListeVendeurs() {
+  const liste = document.getElementById('liste-vendeurs');
+  liste.innerHTML = '';
+  state.vendeurs.forEach(v => {
+    const btn = document.createElement('button');
+    btn.className = 'btn-choice';
+    let roleTag = '';
+    if (v.role === 'DM') roleTag = '<span class="role-tag">DM</span>';
+    else if (v.role === 'WEB') roleTag = '<span class="role-tag">WEB</span>';
+    btn.innerHTML =
+      '<span class="pastille" style="background:' + (v.couleur || '#888780') + '"></span>' +
+      '<span>' + v.nom_affiche + '</span>' + roleTag;
+    btn.onclick = () => choisirVendeur(v);
+    liste.appendChild(btn);
+  });
+
+  // Restaurer le dernier vendeur sélectionné si présent
+  const vCode = localStorage.getItem('vendeur_code');
+  if (vCode) {
+    const v = state.vendeurs.find(ve => ve.code === vCode);
+    if (v) {
+      choisirVendeur(v);
+      return;
+    }
+  }
+}
+
+function choisirVendeur(v) {
+  state.vendeur = v;
+  localStorage.setItem('vendeur_code', v.code);
+  document.getElementById('saisie-pastille').style.background = v.couleur || '#888780';
+  document.getElementById('saisie-nom-vendeur').textContent = v.nom_affiche;
+  // Reset formulaire CA jour
+  document.getElementById('input-acc').value = '';
+  document.getElementById('input-atelier').value = '';
+  document.getElementById('recap-cumul').classList.remove('show');
+  // Reset formulaire Commande
+  document.getElementById('cmd-client').value = '';
+  document.getElementById('cmd-denom').value = '';
+  document.getElementById('cmd-date-pose').value = '';
+  document.getElementById('cmd-acc').value = '';
+  document.getElementById('cmd-atelier').value = '';
+  document.getElementById('cmd-facturable').checked = false;
+  document.getElementById('recap-cmd').classList.remove('show');
+  // Reset formulaire EGT
+  document.getElementById('egt-client').value = '';
+  document.getElementById('egt-denom').value = '';
+  document.getElementById('egt-acc').value = '';
+  document.getElementById('recap-egt').classList.remove('show');
+  // Réinitialiser sur l'onglet CA par défaut
+  switchTab('ca');
+  showScreen('screen-saisie');
+}
+
+function changerVendeur() {
+  localStorage.removeItem('vendeur_code');
+  state.vendeur = null;
+  // Rafraîchir le quick-recap quand on revient sur l'écran sélection vendeur
+  chargerQuickRecap();
+  showScreen('screen-vendeur');
+}
+
+// ════════════════════════════════════════════════════════════
+// Navigation par onglets entre types de saisie
+// ════════════════════════════════════════════════════════════
+function switchTab(name) {
+  // Désactiver tous les onglets et formulaires
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.form-section').forEach(f => f.classList.remove('active'));
+  // Activer l'onglet et le formulaire choisi
+  if (name === 'ca') {
+    document.getElementById('tab-ca').classList.add('active');
+    document.getElementById('form-ca').classList.add('active');
+    prefillerCumulActuel();  // pré-remplir avec le cumul actuel
+  } else if (name === 'cmd') {
+    document.getElementById('tab-cmd').classList.add('active');
+    document.getElementById('form-cmd').classList.add('active');
+  } else if (name === 'egt') {
+    document.getElementById('tab-egt').classList.add('active');
+    document.getElementById('form-egt').classList.add('active');
+    chargerProgressEgt();  // mini-bandeau à jour
+  } else if (name === 'carte') {
+    document.getElementById('tab-carte').classList.add('active');
+    document.getElementById('form-carte').classList.add('active');
+    chargerProgressCartes();  // récap objectif à jour
+  } else if (name === 'encours') {
+    document.getElementById('tab-encours').classList.add('active');
+    document.getElementById('form-encours').classList.add('active');
+    chargerCommandesEnCours();
+  } else if (name === 'recap') {
+    document.getElementById('tab-recap').classList.add('active');
+    document.getElementById('form-recap').classList.add('active');
+    chargerRecap();  // recharge à chaque ouverture
+  } else if (name === 'historique') {
+    document.getElementById('tab-historique').classList.add('active');
+    document.getElementById('form-historique').classList.add('active');
+    chargerHistorique();
+  }
+}
+
+// ════════════════════════════════════════════════════════════
+// Validation d'une saisie Cumul mois (CA_MOIS) — remplace ancien CA_JOUR
+// Chaque saisie REMPLACE la précédente : pas de cumul à la main, on tape
+// directement le cumul total du mois.
+// ════════════════════════════════════════════════════════════
+
+/**
+ * Pré-remplit le formulaire CA mois avec le cumul actuel du vendeur sélectionné.
+ * Permet au DM de voir d'un coup d'œil son dernier cumul saisi et de l'éditer.
+ */
+async function prefillerCumulActuel() {
+  if (!state.vendeur) return;
+  try {
+    const r = await apiGet({ action: 'dashboard.get', magasin_code: state.magasin.code });
+    if (!r.ok) return;
+    const v = (r.data.vendeurs || []).find(x => x.code === state.vendeur.code);
+    if (!v) return;
+
+    const inputAcc = document.getElementById('input-acc');
+    const inputAt = document.getElementById('input-atelier');
+
+    // Pré-remplir si > 0 (sinon laisser placeholder)
+    if (v.cumul_ca_acc > 0) inputAcc.value = v.cumul_ca_acc;
+    if (v.cumul_ca_atelier > 0) inputAt.value = v.cumul_ca_atelier;
+
+    // Afficher le récap si on a déjà un cumul
+    if (v.cumul_ca_acc > 0 || v.cumul_ca_atelier > 0) {
+      document.getElementById('recap-acc').textContent = formatEuro(v.cumul_ca_acc) + ' ACC';
+      document.getElementById('recap-atelier').textContent = formatEuro(v.cumul_ca_atelier) + ' Atelier';
+      document.getElementById('recap-cumul').style.display = 'block';
+    } else {
+      document.getElementById('recap-cumul').style.display = 'none';
+    }
+  } catch (err) {
+    // silencieux
+  }
+}
+
+async function validerSaisie() {
+  const acc = Number(document.getElementById('input-acc').value) || 0;
+  const atelier = Number(document.getElementById('input-atelier').value) || 0;
+
+  if (acc === 0 && atelier === 0) {
+    showToast('Saisir au moins un montant', 'error');
+    return;
+  }
+  if (acc < 0 || atelier < 0) {
+    showToast('Les montants doivent être positifs', 'error');
+    return;
+  }
+
+  const btn = document.getElementById('btn-valider');
+  btn.disabled = true;
+  btn.textContent = 'Envoi…';
+
+  // Générer un id unique côté client pour l'idempotence
+  const id = new Date().toISOString().replace(/[:.]/g, '-') +
+             '_' + Math.random().toString(36).substr(2, 5);
+
+  const payload = {
+    action: 'saisie.create',
+    magasin_code: state.magasin.code,
+    saisie: {
+      id: id,
+      type: 'CA_MOIS',
+      date_effet: new Date().toISOString().slice(0, 10),  // YYYY-MM-DD
+      vendeur_code: state.vendeur.code,
+      montant_acc_ht: acc,
+      montant_atelier: atelier,
+      source: 'pwa_v1'
+    }
+  };
+
+  try {
+    const r = await apiPost(payload);
+    if (!r.ok) throw new Error(r.error.message || 'Erreur backend');
+
+    // Afficher le cumul enregistré
+    document.getElementById('recap-acc').textContent = formatEuro(acc) + ' ACC';
+    document.getElementById('recap-atelier').textContent = formatEuro(atelier) + ' Atelier';
+    document.getElementById('recap-cumul').style.display = 'block';
+    showToast('Saisie enregistrée', 'success');
+    setStatusOnline();
+  } catch (err) {
+    showToast('Erreur : ' + err.message, 'error');
+    setStatusError();
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Enregistrer le cumul';
+  }
+}
+
+// ════════════════════════════════════════════════════════════
+// Validation d'une commande à facturer
+// ════════════════════════════════════════════════════════════
+async function validerCommande() {
+  const client = document.getElementById('cmd-client').value.trim();
+  const denom = document.getElementById('cmd-denom').value.trim();
+  const datePose = document.getElementById('cmd-date-pose').value;  // string YYYY-MM-DD ou ''
+  const acc = Number(document.getElementById('cmd-acc').value) || 0;
+  const atelier = Number(document.getElementById('cmd-atelier').value) || 0;
+  const facturable = document.getElementById('cmd-facturable').checked;
+
+  // Validations
+  if (!client) {
+    showToast('Saisir le nom du client', 'error');
+    return;
+  }
+  if (!denom) {
+    showToast('Saisir la désignation', 'error');
+    return;
+  }
+  if (acc === 0 && atelier === 0) {
+    showToast('Saisir au moins un montant', 'error');
+    return;
+  }
+  if (acc < 0 || atelier < 0) {
+    showToast('Les montants doivent être positifs', 'error');
+    return;
+  }
+
+  const btn = document.getElementById('btn-valider-cmd');
+  btn.disabled = true;
+  btn.textContent = 'Envoi…';
+
+  const id = 'CMD_' + new Date().toISOString().replace(/[:.]/g, '-') +
+             '_' + Math.random().toString(36).substr(2, 5);
+
+  const saisie = {
+    id: id,
+    type: 'CDE_FACTURER',
+    date_effet: new Date().toISOString().slice(0, 10),
+    vendeur_code: state.vendeur.code,
+    montant_acc_ht: acc,
+    montant_atelier: atelier,
+    client_nom: client.toUpperCase(),
+    denomination: denom,
+    facturable_mois: facturable,
+    source: 'pwa_v1'
+  };
+  if (datePose) saisie.date_pose = datePose;
+
+  const payload = {
+    action: 'saisie.create',
+    magasin_code: state.magasin.code,
+    saisie: saisie
+  };
+
+  try {
+    const r = await apiPost(payload);
+    if (!r.ok) throw new Error(r.error.message || 'Erreur backend');
+
+    // Afficher le potentiel mis à jour
+    const t = r.data.totaux_vendeur;
+    document.getElementById('recap-cmd-acc').textContent = formatEuro(t.potentiel_acc) + ' ACC';
+    document.getElementById('recap-cmd-atelier').textContent = formatEuro(t.potentiel_atelier) + ' Atelier';
+    document.getElementById('recap-cmd').classList.add('show');
+
+    // Vider les champs pour la prochaine commande
+    document.getElementById('cmd-client').value = '';
+    document.getElementById('cmd-denom').value = '';
+    document.getElementById('cmd-date-pose').value = '';
+    document.getElementById('cmd-acc').value = '';
+    document.getElementById('cmd-atelier').value = '';
+    document.getElementById('cmd-facturable').checked = false;
+
+    showToast('Commande enregistrée', 'success');
+    setStatusOnline();
+  } catch (err) {
+    showToast('Erreur : ' + err.message, 'error');
+    setStatusError();
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Enregistrer la commande';
+  }
+}
+
+// ════════════════════════════════════════════════════════════
+// EGT : progression du vendeur + validation
+// ════════════════════════════════════════════════════════════
+
+/**
+ * Charge la progression EGT du vendeur courant (objectif + réalisé).
+ * Appelle dashboard.get et extrait les valeurs du vendeur.
+ */
+async function chargerProgressEgt() {
+  document.getElementById('egt-progress').innerHTML =
+    '<div class="egt-progress-loading">Chargement progression…</div>';
+
+  try {
+    const r = await apiGet({ action: 'dashboard.get', magasin_code: state.magasin.code });
+    if (!r.ok) throw new Error(r.error.message || 'Erreur backend');
+
+    const v = r.data.vendeurs.find(ve => ve.code === state.vendeur.code);
+    if (!v) {
+      document.getElementById('egt-progress').innerHTML =
+        '<div class="egt-progress-loading">Vendeur introuvable</div>';
+      return;
+    }
+
+    renderEgtProgress(v.cumul_egt, v.objectif_egt_perso);
+    setStatusOnline();
+  } catch (err) {
+    document.getElementById('egt-progress').innerHTML =
+      '<div class="egt-progress-loading" style="color:#d85a30">Erreur : ' + err.message + '</div>';
+    setStatusError();
+  }
+}
+
+function renderEgtProgress(realise, objectif) {
+  const reste = Math.max(0, objectif - realise);
+  const pct = objectif > 0 ? Math.min(100, Math.round(realise / objectif * 100)) : 0;
+  const pctClass = pct >= 100 ? 'high' : '';
+
+  document.getElementById('egt-progress').innerHTML = `
+    <div class="egt-progress-title">Progression EGT mois</div>
+    <div class="egt-progress-grid">
+      <div class="egt-progress-cell">
+        <div class="egt-progress-cell-label">Réalisé</div>
+        <div class="egt-progress-cell-value highlight">${formatEuro(realise)}</div>
+      </div>
+      <div class="egt-progress-cell">
+        <div class="egt-progress-cell-label">Objectif</div>
+        <div class="egt-progress-cell-value">${formatEuro(objectif)}</div>
+      </div>
+      <div class="egt-progress-cell">
+        <div class="egt-progress-cell-label">Reste</div>
+        <div class="egt-progress-cell-value">${formatEuro(reste)}</div>
+      </div>
+    </div>
+    <div class="egt-progress-bar">
+      <div class="egt-progress-bar-fill" style="width:${pct}%"></div>
+    </div>
+    <div class="egt-progress-pct ${pctClass}">${pct}%</div>
+  `;
+}
+
+/**
+ * Validation d'une saisie EGT.
+ */
+async function validerEgt() {
+  const client = document.getElementById('egt-client').value.trim();
+  const denom = document.getElementById('egt-denom').value.trim();
+  const acc = Number(document.getElementById('egt-acc').value) || 0;
+
+  // Validations
+  if (!client) {
+    showToast('Saisir le nom du client', 'error');
+    return;
+  }
+  if (!denom) {
+    showToast('Saisir la désignation', 'error');
+    return;
+  }
+  if (acc <= 0) {
+    showToast('Montant ACC doit être > 0', 'error');
+    return;
+  }
+
+  const btn = document.getElementById('btn-valider-egt');
+  btn.disabled = true;
+  btn.textContent = 'Envoi…';
+
+  const id = 'EGT_' + new Date().toISOString().replace(/[:.]/g, '-') +
+             '_' + Math.random().toString(36).substr(2, 5);
+
+  const payload = {
+    action: 'saisie.create',
+    magasin_code: state.magasin.code,
+    saisie: {
+      id: id,
+      type: 'EGT',
+      date_effet: new Date().toISOString().slice(0, 10),
+      vendeur_code: state.vendeur.code,
+      montant_acc_ht: acc,
+      client_nom: client.toUpperCase(),
+      denomination: denom,
+      source: 'pwa_v1'
+    }
+  };
+
+  try {
+    const r = await apiPost(payload);
+    if (!r.ok) throw new Error(r.error.message || 'Erreur backend');
+
+    // Afficher le cumul EGT mis à jour
+    const t = r.data.totaux_vendeur;
+    document.getElementById('recap-egt-total').textContent = formatEuro(t.cumul_egt) + ' EGT';
+    document.getElementById('recap-egt').classList.add('show');
+
+    // Rafraîchir le mini-bandeau de progression pour refléter la nouvelle saisie
+    chargerProgressEgt();
+
+    // Vider les champs
+    document.getElementById('egt-client').value = '';
+    document.getElementById('egt-denom').value = '';
+    document.getElementById('egt-acc').value = '';
+
+    showToast('EGT enregistrée', 'success');
+    setStatusOnline();
+  } catch (err) {
+    showToast('Erreur : ' + err.message, 'error');
+    setStatusError();
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Enregistrer l\'EGT';
+  }
+}
+
+// ════════════════════════════════════════════════════════════
+// Cartes fidélité : saisie quantité + récap objectif magasin
+// ════════════════════════════════════════════════════════════
+
+/**
+ * Charge le récap objectif cartes (cumul / objectif / reste) depuis dashboard.get.
+ * Met à jour le bloc affiché en haut du formulaire CARTE.
+ */
+async function chargerProgressCartes() {
+  try {
+    const r = await apiGet({ action: 'dashboard.get', magasin_code: state.magasin.code });
+    if (!r.ok) return;  // silencieux : l'utilisateur peut toujours saisir
+
+    const m = r.data.magasin;
+    const cumul = Number(m.cumul_cartes) || 0;
+    const obj = Number(m.objectif_cartes) || 0;
+    const raf = Number(m.raf_cartes) || 0;
+
+    document.getElementById('recap-cumul-cartes').textContent = cumul;
+    document.getElementById('recap-objectif-cartes-val').textContent = obj > 0 ? obj : '—';
+    document.getElementById('recap-raf-cartes').textContent = obj > 0 ? raf : '—';
+
+    // Afficher seulement si on a un objectif défini
+    document.getElementById('recap-objectif-cartes').style.display = obj > 0 ? 'block' : 'none';
+  } catch (err) {
+    // silencieux
+  }
+}
+
+/**
+ * Stepper +/- pour la quantité de cartes.
+ */
+function ajustQty(delta) {
+  const input = document.getElementById('field-nb-cartes');
+  const current = Math.max(1, Number(input.value) || 1);
+  const next = Math.max(1, Math.min(50, current + delta));
+  input.value = next;
+}
+
+/**
+ * Valide une saisie de carte fidélité.
+ * Stocke la quantité dans montant_acc_ht (réutilisation infra existante).
+ */
+async function validerCarte() {
+  const nb = Math.floor(Number(document.getElementById('field-nb-cartes').value) || 0);
+
+  if (nb <= 0) {
+    showToast('Le nombre de cartes doit être > 0', 'error');
+    return;
+  }
+  if (!state.vendeur) {
+    showToast('Vendeur non sélectionné', 'error');
+    return;
+  }
+
+  const btn = document.getElementById('btn-valider-carte');
+  btn.disabled = true;
+  btn.textContent = 'Enregistrement…';
+
+  try {
+    const saisie = {
+      id: 'CARTE_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+      type: 'CARTE',
+      date_effet: aujourdhuiIso_(),
+      vendeur_code: state.vendeur.code,
+      montant_acc_ht: nb,
+      montant_atelier: 0,
+      source: 'pwa'
+    };
+    const r = await apiPost({
+      action: 'saisie.create',
+      magasin_code: state.magasin.code,
+      saisie: saisie
+    });
+    if (!r.ok) throw new Error(r.error.message || 'Erreur backend');
+
+    showToast(nb > 1 ? `${nb} cartes enregistrées` : 'Carte enregistrée', 'success');
+    document.getElementById('field-nb-cartes').value = 1;
+    chargerProgressCartes();  // mise à jour du récap
+    setStatusOnline();
+  } catch (err) {
+    showToast('Erreur : ' + err.message, 'error');
+    setStatusError();
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Enregistrer';
+  }
+}
+
+// ════════════════════════════════════════════════════════════
+// Historique des saisies du mois (onglet 6) : liste, filtre, annulation
+// ════════════════════════════════════════════════════════════
+
+// État local du filtre de l'historique
+let historiqueFilter = 'tous';  // 'tous' ou 'moi'
+
+async function chargerHistorique() {
+  document.getElementById('historique-content').innerHTML =
+    '<div class="recap-loading"><span class="loader-spinner"></span> Chargement…</div>';
+
+  try {
+    // Si filtre "moi" et vendeur sélectionné, passer le filtre au backend
+    const params = { action: 'historique.get', magasin_code: state.magasin.code };
+    if (historiqueFilter === 'moi' && state.vendeur) {
+      params.vendeur_code = state.vendeur.code;
+    }
+
+    const r = await apiGet(params);
+    if (!r.ok) throw new Error(r.error.message || 'Erreur backend');
+
+    renderHistorique(r.data.saisies);
+    setStatusOnline();
+  } catch (err) {
+    renderErreurRetry_('historique-content', err.message, 'chargerHistorique');
+    setStatusError();
+  }
+}
+
+function filtreHistorique(mode) {
+  historiqueFilter = mode;
+  document.getElementById('hist-filter-tous').classList.toggle('active', mode === 'tous');
+  document.getElementById('hist-filter-moi').classList.toggle('active', mode === 'moi');
+  chargerHistorique();
+}
+
+function renderHistorique(saisies) {
+  if (!saisies || saisies.length === 0) {
+    document.getElementById('historique-content').innerHTML =
+      '<div class="cmd-list-empty">Aucune saisie pour le moment.</div>';
+    return;
+  }
+
+  // Compteur
+  const nbActif = saisies.filter(s => s.statut === 'ACTIF').length;
+  const compteur = '<div style="font-size: 12px; color: #5f5e5a; margin-bottom: 12px;">' +
+                   saisies.length + ' saisie' + (saisies.length > 1 ? 's' : '') +
+                   ' (' + nbActif + ' actif' + (nbActif > 1 ? 's' : '') + ')</div>';
+
+  // Cards
+  const cards = saisies.map(s => renderHistoriqueCard_(s)).join('');
+
+  document.getElementById('historique-content').innerHTML = compteur + cards;
+}
+
+function renderHistoriqueCard_(s) {
+  // Statut → classe CSS
+  const statutClass = 'statut-' + (s.statut || 'actif').toLowerCase();
+
+  // Badge type
+  let typeBadge, typeClass;
+  switch (s.type) {
+    case 'CA_JOUR':
+      typeBadge = 'CA jour'; typeClass = 'ca'; break;
+    case 'CA_MOIS':
+      typeBadge = 'Cumul mois'; typeClass = 'ca'; break;
+    case 'CDE_FACTURER':
+      typeBadge = 'Commande'; typeClass = 'cmd'; break;
+    case 'EGT':
+      typeBadge = 'EGT'; typeClass = 'egt'; break;
+    case 'CARTE':
+      typeBadge = 'Carte'; typeClass = 'carte'; break;
+    default:
+      typeBadge = s.type; typeClass = 'ca';
+  }
+
+  // Badge statut
+  let statutBadge = '';
+  if (s.statut === 'ANNULE') {
+    statutBadge = '<span class="statut-badge annule">Annulée</span>';
+  } else if (s.statut === 'FACTURE') {
+    statutBadge = '<span class="statut-badge facture">Facturée</span>';
+  } else if (s.statut === 'REMPLACE') {
+    statutBadge = '<span class="statut-badge remplace">Remplacée</span>';
+  }
+
+  // Heure de saisie (HH:MM)
+  let heure = '';
+  if (s.date_saisie) {
+    const d = s.date_saisie instanceof Date ? s.date_saisie : new Date(s.date_saisie);
+    if (!isNaN(d.getTime())) {
+      heure = String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+    }
+  }
+
+  // Corps : montants + détails selon le type
+  let body = '';
+  if (s.type === 'CA_JOUR' || s.type === 'CA_MOIS') {
+    body = '<span class="montants">' + formatEuro(s.montant_acc_ht) + ' ACC + ' +
+           formatEuro(s.montant_atelier) + ' Atelier</span>';
+  } else if (s.type === 'CDE_FACTURER') {
+    body = '<span class="montants">' + formatEuro(s.montant_acc_ht) + ' ACC + ' +
+           formatEuro(s.montant_atelier) + ' Atelier</span>' +
+           '<div class="client-info">' + escapeHtml_(s.client_nom || '—') +
+           ' · ' + escapeHtml_(s.denomination || '—') + '</div>';
+  } else if (s.type === 'EGT') {
+    body = '<span class="montants">' + formatEuro(s.montant_acc_ht) + ' EGT</span>' +
+           '<div class="client-info">' + escapeHtml_(s.client_nom || '—') +
+           ' · ' + escapeHtml_(s.denomination || '—') + '</div>';
+  } else if (s.type === 'CARTE') {
+    const nb = Number(s.montant_acc_ht) || 0;
+    body = '<span class="montants">' + nb + ' carte' + (nb > 1 ? 's' : '') + ' fidélité</span>';
+  }
+
+  // Bouton annuler uniquement pour les saisies ACTIVES
+  const boutonAnnuler = s.statut === 'ACTIF'
+    ? '<div class="hist-actions"><button class="hist-btn-annuler" onclick="actionAnnulerSaisie(\'' +
+      s.id + '\')">Annuler</button></div>'
+    : '';
+
+  return `
+    <div class="historique-card ${statutClass}" data-id="${s.id}">
+      <div class="hist-header">
+        <span class="pastille" style="background:${s.vendeur_couleur || '#888780'}"></span>
+        <span class="vendeur-nom">${escapeHtml_(s.vendeur_nom || s.vendeur_code)}</span>
+        <span class="type-badge ${typeClass}">${typeBadge}</span>
+        ${statutBadge}
+        <span class="heure">${heure}</span>
+      </div>
+      <div class="hist-body">${body}</div>
+      ${boutonAnnuler}
+    </div>
+  `;
+}
+
+/**
+ * Annule une saisie depuis l'historique.
+ * Passe la saisie en statut ANNULE via saisie.update.
+ */
+async function actionAnnulerSaisie(idSaisie) {
+  const card = document.querySelector('.historique-card[data-id="' + idSaisie + '"]');
+  if (card) {
+    card.querySelectorAll('button').forEach(b => b.disabled = true);
+  }
+
+  try {
+    const r = await apiPost({
+      action: 'saisie.update',
+      magasin_code: state.magasin.code,
+      saisie_id: idSaisie,
+      operation: 'ANNULER'
+    });
+    if (!r.ok) throw new Error(r.error.message || 'Erreur backend');
+
+    // Animation de retrait, puis recharge complète
+    if (card) card.classList.add('removing');
+    setTimeout(() => chargerHistorique(), 300);
+
+    showToast('Saisie annulée', 'success');
+    setStatusOnline();
+  } catch (err) {
+    if (card) card.querySelectorAll('button').forEach(b => b.disabled = false);
+    showToast('Erreur : ' + err.message, 'error');
+    setStatusError();
+  }
+}
+
+// ════════════════════════════════════════════════════════════
+// Commandes en cours : liste, facturation, annulation
+// ════════════════════════════════════════════════════════════
+
+/**
+ * Charge la liste des commandes en cours du magasin (depuis dashboard.get).
+ * Mémorise dans state pour permettre le filtrage côté client sans rappel API.
+ */
+async function chargerCommandesEnCours() {
+  document.getElementById('encours-content').innerHTML =
+    '<div class="recap-loading"><span class="loader-spinner"></span> Chargement…</div>';
+
+  try {
+    const r = await apiGet({ action: 'dashboard.get', magasin_code: state.magasin.code });
+    if (!r.ok) throw new Error(r.error.message || 'Erreur backend');
+
+    // Mémoriser pour le filtrage côté client
+    state.encours_commandes = r.data.commandes_en_cours || [];
+    state.encours_vendeurs = r.data.vendeurs || [];
+
+    // Appliquer le filtre actuel s'il existe (cas où on actualise alors qu'une recherche est en cours)
+    filtrerCommandesParClient();
+    setStatusOnline();
+  } catch (err) {
+    renderErreurRetry_('encours-content', err.message, 'chargerCommandesEnCours');
+    setStatusError();
+  }
+}
+
+/**
+ * Filtre la liste des commandes par nom de client (texte libre).
+ * Recherche insensible à la casse et aux accents, sur le champ client_nom uniquement.
+ * Re-render la liste à partir de state.encours_commandes (pas de rappel API).
+ */
+function filtrerCommandesParClient() {
+  const input = document.getElementById('encours-search');
+  const clearBtn = document.getElementById('encours-search-clear');
+  const query = (input ? input.value : '').trim();
+
+  // Afficher/masquer le bouton clear
+  if (clearBtn) clearBtn.style.display = query ? 'flex' : 'none';
+
+  const commandes = state.encours_commandes || [];
+  const vendeurs = state.encours_vendeurs || [];
+
+  // Pas de filtre : tout afficher
+  if (!query) {
+    renderCommandesEnCours(commandes, vendeurs);
+    return;
+  }
+
+  // Normaliser la requête (minuscules, sans accents)
+  const queryNorm = normaliserTexte_(query);
+
+  const filtrees = commandes.filter(c => {
+    const nom = normaliserTexte_(c.client_nom || '');
+    return nom.includes(queryNorm);
+  });
+
+  if (filtrees.length === 0) {
+    document.getElementById('encours-content').innerHTML =
+      '<div class="encours-search-empty">Aucune commande trouvée pour « ' + escapeHtml_(query) + ' »</div>';
+    return;
+  }
+
+  renderCommandesEnCours(filtrees, vendeurs);
+}
+
+/**
+ * Réinitialise le champ de recherche client et ré-affiche toutes les commandes.
+ */
+function reinitRechercheClient() {
+  const input = document.getElementById('encours-search');
+  if (input) input.value = '';
+  filtrerCommandesParClient();
+}
+
+/**
+ * Normalise un texte pour comparaison : minuscules, suppression des accents.
+ * Permet une recherche tolérante : "durand" trouvera "DURAND", "Dürand", "Durand"…
+ */
+function normaliserTexte_(s) {
+  return (s || '')
+    .toString()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+}
+
+function renderCommandesEnCours(commandes, vendeurs) {
+  if (!commandes || commandes.length === 0) {
+    document.getElementById('encours-content').innerHTML =
+      '<div class="cmd-list-empty">Aucune commande dans le portefeuille.<br>' +
+      'Les commandes saisies via l\'onglet "Commande" apparaîtront ici.</div>';
+    return;
+  }
+
+  // Compteurs : total portefeuille + cochées facturables ce mois
+  const nbFact = commandes.filter(c => c.facturable_mois).length;
+  const totalAccFact = commandes.filter(c => c.facturable_mois).reduce((s, c) => s + (c.montant_acc_ht || 0), 0);
+  const totalAtFact = commandes.filter(c => c.facturable_mois).reduce((s, c) => s + (c.montant_atelier || 0), 0);
+
+  const header = `
+    <div class="encours-summary">
+      <div class="encours-summary-line"><strong>${commandes.length}</strong> commande${commandes.length > 1 ? 's' : ''} au portefeuille</div>
+      <div class="encours-summary-line">
+        <strong>${nbFact}</strong> facturable${nbFact > 1 ? 's' : ''} ce mois →
+        <span class="encours-summary-tot">${formatEuro(totalAccFact)} ACC + ${formatEuro(totalAtFact)} Atelier</span>
+      </div>
+      <div class="encours-summary-hint">💡 Coche les commandes que tu vas facturer ce mois pour les ajouter au potentiel.</div>
+    </div>
+  `;
+
+  // Cartes
+  const cards = commandes.map(c => {
+    const vendeur = vendeurs.find(v => v.code === c.vendeur_code);
+    const couleur = vendeur ? vendeur.couleur : '#888780';
+
+    // Date pose : formatage et détection urgent (< 3 jours)
+    let dateHtml = '';
+    if (c.date_pose) {
+      const dp = new Date(c.date_pose);
+      const today = new Date();
+      const diffDays = Math.ceil((dp - today) / (1000 * 60 * 60 * 24));
+      const dateFr = dp.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+      const urgentClass = diffDays >= 0 && diffDays <= 3 ? 'urgent' : '';
+      dateHtml = '<span class="date-pose ' + urgentClass + '">📅 ' + dateFr + '</span>';
+    } else {
+      dateHtml = '<span class="date-pose no-date">Pose non datée</span>';
+    }
+
+    const checked = c.facturable_mois ? 'checked' : '';
+    const cardClass = c.facturable_mois ? 'cmd-card facturable' : 'cmd-card';
+
+    return `
+      <div class="${cardClass}" data-id="${c.id}">
+        <label class="cmd-checkbox-label">
+          <input type="checkbox" class="cmd-checkbox" ${checked}
+                 onchange="actionToggleFacturable('${c.id}', this.checked)">
+          <span class="cmd-checkbox-text">Facturer ce mois</span>
+        </label>
+        <div class="cmd-card-client">${escapeHtml_(c.client_nom || '—')}</div>
+        <div class="cmd-card-denom">${escapeHtml_(c.denomination || '—')}</div>
+        <div class="cmd-card-meta">
+          <span class="pastille" style="background:${couleur}"></span>
+          <span>${escapeHtml_(c.vendeur_nom || c.vendeur_code)}</span>
+          <span class="sep">·</span>
+          ${dateHtml}
+        </div>
+        <div class="cmd-card-amounts">
+          <div class="cmd-card-amount">
+            <div class="label">ACC HT</div>
+            <div class="value">${formatEuro(c.montant_acc_ht)}</div>
+          </div>
+          <div class="cmd-card-amount">
+            <div class="label">Atelier</div>
+            <div class="value">${formatEuro(c.montant_atelier)}</div>
+          </div>
+        </div>
+        <div class="cmd-card-actions">
+          <button class="cmd-btn cmd-btn-invoice" onclick="actionRetirerCommande('${c.id}')">
+            Retirer du portefeuille
+          </button>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  document.getElementById('encours-content').innerHTML = header + cards;
+}
+
+/**
+ * Bascule le flag facturable_mois d'une commande au clic sur la checkbox.
+ * Mise à jour optimiste : on change l'UI avant de confirmer côté backend.
+ */
+async function actionToggleFacturable(idCmd, checked) {
+  const card = document.querySelector('.cmd-card[data-id="' + idCmd + '"]');
+  if (card) {
+    if (checked) card.classList.add('facturable');
+    else card.classList.remove('facturable');
+  }
+
+  try {
+    const r = await apiPost({
+      action: 'commande.toggleFacturable',
+      magasin_code: state.magasin.code,
+      saisie_id: idCmd,
+      facturable_mois: checked
+    });
+    if (!r.ok) throw new Error(r.error.message || 'Erreur backend');
+
+    // Mettre à jour le state local sans rappel API : préserve le scroll et la recherche en cours
+    if (state.encours_commandes) {
+      const cmd = state.encours_commandes.find(c => c.id === idCmd);
+      if (cmd) cmd.facturable_mois = checked;
+    }
+    // Re-render à partir du state + filtre actuel → met à jour les compteurs en haut
+    filtrerCommandesParClient();
+    setStatusOnline();
+  } catch (err) {
+    // Rollback UI
+    const checkbox = card ? card.querySelector('.cmd-checkbox') : null;
+    if (checkbox) checkbox.checked = !checked;
+    if (card) {
+      if (!checked) card.classList.add('facturable');
+      else card.classList.remove('facturable');
+    }
+    showToast('Erreur : ' + err.message, 'error');
+    setStatusError();
+  }
+}
+
+/**
+ * Retire une commande du potentiel.
+ * Côté backend : statut passe en ANNULE (la commande disparaît des totaux).
+ * Le CA réalisé sera saisi par le vendeur via "CA jour" — pas de bascule auto
+ * pour éviter le double comptage.
+ */
+async function actionRetirerCommande(idCommande) {
+  const card = document.querySelector('.cmd-card[data-id="' + idCommande + '"]');
+  if (card) {
+    card.querySelectorAll('button').forEach(b => b.disabled = true);
+  }
+
+  try {
+    const r = await apiPost({
+      action: 'saisie.update',
+      magasin_code: state.magasin.code,
+      saisie_id: idCommande,
+      operation: 'ANNULER'
+    });
+    if (!r.ok) throw new Error(r.error.message || 'Erreur backend');
+
+    if (card) card.classList.add('removing');
+    setTimeout(() => chargerCommandesEnCours(), 300);
+
+    showToast('Commande retirée', 'success');
+    setStatusOnline();
+  } catch (err) {
+    if (card) card.querySelectorAll('button').forEach(b => b.disabled = false);
+    showToast('Erreur : ' + err.message, 'error');
+    setStatusError();
+  }
+}
+
+/**
+ * Échappement HTML basique pour les noms client / dénominations (XSS protection).
+ */
+function escapeHtml_(s) {
+  if (s == null) return '';
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+// ════════════════════════════════════════════════════════════
+// Onglet Récap : dashboard.get + rendu
+// ════════════════════════════════════════════════════════════
+async function chargerRecap() {
+  document.getElementById('recap-content').innerHTML =
+    '<div class="recap-loading"><span class="loader-spinner"></span> Chargement…</div>';
+  document.getElementById('recap-magasin-title').textContent =
+    'Récap — ' + state.magasin.nom;
+
+  try {
+    const r = await apiGet({ action: 'dashboard.get', magasin_code: state.magasin.code });
+    if (!r.ok) throw new Error(r.error.message || 'Erreur backend');
+    renderRecap(r.data);
+    setStatusOnline();
+  } catch (err) {
+    renderErreurRetry_('recap-content', err.message, 'chargerRecap');
+    setStatusError();
+  }
+}
+
+// Paramètres prime du magasin (taux), mémorisés au chargement du Récap.
+// Utilisés par le simulateur côté frontend, qui ne fait pas d'appel API.
+// On les approxime à partir des données vendeurs (taux Narbonne fixes).
+const TAUX_PRIMES = {
+  acc: 0.007,       // 0,7%
+  presta: 0.0275,   // 2,75%
+  egt: 0.10         // 10%
+};
+
+function renderRecap(data) {
+  const m = data.magasin;
+  // Mémoriser le contexte magasin pour le simulateur de chaque carte vendeur
+  state.contexte_magasin = {
+    prev_acc: m.prev_acc,
+    atterrissage_acc: m.atterrissage_acc,
+    dm_ok: m.dm_ok,
+    dm_pct: m.dm_pct
+  };
+  // Mémoriser les données vendeurs pour le simulateur (calculs en JS pur sans appel API)
+  state.vendeurs_cache = data.vendeurs;
+
+  let html = '';
+
+  // ─── Bloc ACC magasin ───
+  html += blocDim_('ACC',
+    m.prev_acc, m.cumul_ca_acc, m.potentiel_acc, m.atterrissage_acc, m.raf_acc, m.prev_acc);
+
+  // ─── Bloc Atelier magasin ───
+  html += blocDim_('Atelier',
+    m.prev_mo, m.cumul_ca_mo, m.potentiel_mo, m.atterrissage_mo, m.raf_mo, m.prev_mo);
+
+  // ─── Bloc EGT magasin ───
+  html += blocDimEgt_('EGT', m.objectif_egt, m.cumul_egt);
+
+  // ─── Bloc Cartes fidélité magasin (objectif + cumul + reste) ───
+  // N'affiche que si l'objectif est défini (sinon pas d'intérêt à montrer)
+  if (m.objectif_cartes && m.objectif_cartes > 0) {
+    html += blocDimCartes_('Cartes', m.objectif_cartes, m.cumul_cartes, m.raf_cartes);
+  }
+
+  // ─── Section vendeurs ───
+  html += '<div class="vendeur-section-title">Vendeurs</div>';
+
+  data.vendeurs.forEach(v => {
+    html += carteVendeur_(v);
+  });
+
+  document.getElementById('recap-content').innerHTML = html;
+
+  // Déclencher un calcul initial du simulateur pour chaque vendeur
+  // (affiche les primes simulées dès l'ouverture, égales aux primes réelles)
+  data.vendeurs.forEach(v => {
+    if (v.primes && (v.primes.acc.statut !== 'NON_ELIGIBLE'
+                  || v.primes.presta.statut !== 'NON_ELIGIBLE'
+                  || v.primes.egt.statut !== 'NON_ELIGIBLE')) {
+      simuler(v.code);
+    }
+  });
+}
+
+/**
+ * Bloc dimension magasin (ACC ou Atelier) avec 5 chiffres détaillés.
+ */
+function blocDim_(label, prev, caJour, potentiel, atterrissage, raf, base) {
+  const pct = base > 0 ? Math.round(atterrissage / base * 100) : 0;
+  let pctClass = 'low';
+  if (pct >= 100) pctClass = 'high';
+  else if (pct >= 50) pctClass = '';
+
+  return `
+    <div class="dim-block">
+      <div class="dim-title">${label}</div>
+      <div class="dim-line">
+        <span>Prévisionnel</span>
+        <span class="dim-value">${formatEuro(prev)}</span>
+      </div>
+      <div class="dim-line">
+        <span>CA jour</span>
+        <span class="dim-value">${formatEuro(caJour)}</span>
+      </div>
+      <div class="dim-line">
+        <span>Potentiel commandes</span>
+        <span class="dim-value">${formatEuro(potentiel)}</span>
+      </div>
+      <div class="dim-line highlight">
+        <span>Atterrissage</span>
+        <span>
+          <span class="dim-value">${formatEuro(atterrissage)}</span>
+          <span class="dim-percent ${pctClass}">${pct}%</span>
+        </span>
+      </div>
+      <div class="dim-line">
+        <span>Reste à faire</span>
+        <span class="dim-value">${formatEuro(raf)}</span>
+      </div>
+    </div>
+  `;
+}
+
+/**
+ * Bloc EGT du magasin (3 chiffres : objectif, cumul, reste).
+ */
+function blocDimEgt_(label, objectif, cumul) {
+  const raf = Math.max(0, objectif - cumul);
+  const pct = objectif > 0 ? Math.round(cumul / objectif * 100) : 0;
+  let pctClass = 'low';
+  if (pct >= 100) pctClass = 'high';
+  else if (pct >= 50) pctClass = '';
+
+  return `
+    <div class="dim-block">
+      <div class="dim-title">${label}</div>
+      <div class="dim-line">
+        <span>Objectif</span>
+        <span class="dim-value">${formatEuro(objectif)}</span>
+      </div>
+      <div class="dim-line highlight">
+        <span>Réalisé</span>
+        <span>
+          <span class="dim-value">${formatEuro(cumul)}</span>
+          <span class="dim-percent ${pctClass}">${pct}%</span>
+        </span>
+      </div>
+      <div class="dim-line">
+        <span>Reste à faire</span>
+        <span class="dim-value">${formatEuro(raf)}</span>
+      </div>
+    </div>
+  `;
+}
+
+/**
+ * Bloc dimension cartes fidélité magasin (objectif/cumul/reste en quantités, pas en €).
+ * N'affiche que si l'objectif > 0.
+ */
+function blocDimCartes_(label, objectif, cumul, raf) {
+  const pct = objectif > 0 ? Math.round(cumul / objectif * 100) : 0;
+  let pctClass = 'low';
+  if (pct >= 100) pctClass = 'high';
+  else if (pct >= 50) pctClass = '';
+
+  return `
+    <div class="dim-block">
+      <div class="dim-title">${label}</div>
+      <div class="dim-line">
+        <span>Objectif</span>
+        <span class="dim-value">${objectif}</span>
+      </div>
+      <div class="dim-line highlight">
+        <span>Réalisé</span>
+        <span>
+          <span class="dim-value">${cumul}</span>
+          <span class="dim-percent ${pctClass}">${pct}%</span>
+        </span>
+      </div>
+      <div class="dim-line">
+        <span>Reste à faire</span>
+        <span class="dim-value">${raf}</span>
+      </div>
+    </div>
+  `;
+}
+
+/**
+ * Carte récap pour un vendeur : 3 colonnes (ACC, Atelier, EGT) × 5 lignes (Prév, CA, Pot, Att, RAF).
+ */
+function carteVendeur_(v) {
+  const accAtt = v.atterrissage_acc;
+  const accPrev = v.prev_acc_perso;
+  const accRaf = Math.max(0, accPrev - accAtt);
+  const ateAtt = v.atterrissage_atelier;
+  const atePrev = v.prev_atelier_perso;
+  const ateRaf = Math.max(0, atePrev - ateAtt);
+  const egtObj = v.objectif_egt_perso;
+  const egtCumul = v.cumul_egt;
+  const egtRaf = Math.max(0, egtObj - egtCumul);
+
+  let roleTag = '';
+  if (v.role === 'DM') roleTag = '<span class="role-tag">DM</span>';
+  else if (v.role === 'WEB') roleTag = '<span class="role-tag">WEB</span>';
+
+  // Petite barre de progression sur ACC
+  const pctAcc = accPrev > 0 ? Math.min(100, Math.round(accAtt / accPrev * 100)) : 0;
+
+  return `
+    <div class="vendeur-card">
+      <div class="vendeur-card-header">
+        <span class="pastille" style="background:${v.couleur || '#888780'}"></span>
+        <span class="nom">${v.nom_affiche}</span>
+        ${roleTag}
+      </div>
+      <div class="dim-table">
+        <div class="col-label"></div>
+        <div class="col-header">ACC</div>
+        <div class="col-header">Atelier</div>
+        <div class="col-header">EGT</div>
+
+        <div class="col-label">Prév</div>
+        <div class="val">${formatEuro(accPrev)}</div>
+        <div class="val">${formatEuro(atePrev)}</div>
+        <div class="val">${formatEuro(egtObj)}</div>
+
+        <div class="col-label">CA jour</div>
+        <div class="val">${formatEuro(v.cumul_ca_acc)}</div>
+        <div class="val">${formatEuro(v.cumul_ca_atelier)}</div>
+        <div class="val">—</div>
+
+        <div class="col-label">Potentiel</div>
+        <div class="val">${formatEuro(v.potentiel_acc)}</div>
+        <div class="val">${formatEuro(v.potentiel_atelier)}</div>
+        <div class="val">—</div>
+
+        <div class="col-label">Atterrissage</div>
+        <div class="val highlight">${formatEuro(accAtt)}</div>
+        <div class="val highlight">${formatEuro(ateAtt)}</div>
+        <div class="val highlight">${formatEuro(egtCumul)}</div>
+
+        <div class="col-label">Reste à faire</div>
+        <div class="val raf">${formatEuro(accRaf)}</div>
+        <div class="val raf">${formatEuro(ateRaf)}</div>
+        <div class="val raf">${formatEuro(egtRaf)}</div>
+      </div>
+      <div class="pct-bar"><div class="pct-bar-fill" style="width:${pctAcc}%"></div></div>
+      <div class="pct-text">${pctAcc}% du prév ACC atteint</div>
+      ${renderBlocPrimes_(v.primes)}
+      ${renderSimulateur_(v)}
+    </div>
+  `;
+}
+
+/**
+ * Rendu du simulateur de primes pour un vendeur.
+ * 3 champs : atterrissage ACC / Atelier / EGT, pré-remplis avec les valeurs réelles.
+ * Au changement d'une valeur, recalcule les primes simulées en JS pur.
+ */
+function renderSimulateur_(v) {
+  // Si aucune prime éligible, pas de simulateur (cohérent avec renderBlocPrimes_)
+  if (!v.primes) return '';
+  const aucuneEligible = v.primes.acc.statut === 'NON_ELIGIBLE'
+                      && v.primes.presta.statut === 'NON_ELIGIBLE'
+                      && v.primes.egt.statut === 'NON_ELIGIBLE';
+  if (aucuneEligible) return '';
+
+  const code = v.code;
+  return `
+    <div class="simulator" data-vendeur="${code}">
+      <div class="simulator-title">
+        <span>🎯 Simulateur fin de mois</span>
+        <button class="simulator-reset" onclick="resetSimulateur('${code}')">↺ Reset</button>
+      </div>
+      <div class="simulator-fields">
+        <div class="simulator-field">
+          <label>Atterri. ACC</label>
+          <input type="number" id="sim-acc-${code}" value="${v.atterrissage_acc}" min="0" step="100"
+                 inputmode="decimal" oninput="simuler('${code}')">
+        </div>
+        <div class="simulator-field">
+          <label>Atterri. Atelier</label>
+          <input type="number" id="sim-ate-${code}" value="${v.atterrissage_atelier}" min="0" step="100"
+                 inputmode="decimal" oninput="simuler('${code}')">
+        </div>
+        <div class="simulator-field">
+          <label>Cumul EGT</label>
+          <input type="number" id="sim-egt-${code}" value="${v.cumul_egt}" min="0" step="50"
+                 inputmode="decimal" oninput="simuler('${code}')">
+        </div>
+      </div>
+      <div class="simulator-result" id="sim-result-${code}">
+        <div class="simulator-result-line zero">
+          <span>Modifie les valeurs pour simuler</span>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+/**
+ * Simule les primes pour un vendeur en lisant les 3 champs de saisie.
+ * Recalcule en JS pur avec la règle DM (état actuel du magasin).
+ */
+function simuler(codeVendeur) {
+  // Retrouver le vendeur dans les données chargées
+  const v = state.vendeurs_cache && state.vendeurs_cache.find(ve => ve.code === codeVendeur);
+  if (!v) return;
+
+  // Lire les valeurs simulées
+  const accSim = Number(document.getElementById('sim-acc-' + codeVendeur).value) || 0;
+  const ateSim = Number(document.getElementById('sim-ate-' + codeVendeur).value) || 0;
+  const egtSim = Number(document.getElementById('sim-egt-' + codeVendeur).value) || 0;
+
+  // Recalculer dm_ok : le simulateur fait varier l'atterrissage ACC du vendeur,
+  // donc on doit recalculer l'atterrissage magasin simulé (somme tous vendeurs)
+  // EN UTILISANT la valeur simulée pour CE vendeur et les valeurs réelles pour les autres.
+  let attMagSim = 0;
+  state.vendeurs_cache.forEach(ve => {
+    if (ve.code === codeVendeur) attMagSim += accSim;
+    else attMagSim += ve.atterrissage_acc;
+  });
+  const prevMag = state.contexte_magasin.prev_acc;
+  const dm_ok_sim = prevMag > 0 && attMagSim >= prevMag * 0.9;
+  const dm_pct_sim = prevMag > 0 ? Math.round(attMagSim / prevMag * 100) : 0;
+
+  // Calculer les 3 primes simulées
+  const primeAcc = simulerPrime_(v.primes.acc.statut !== 'NON_ELIGIBLE',
+                                  accSim, v.prev_acc_perso, TAUX_PRIMES.acc, dm_ok_sim);
+  const primeAte = simulerPrime_(v.primes.presta.statut !== 'NON_ELIGIBLE',
+                                  ateSim, v.prev_atelier_perso, TAUX_PRIMES.presta, dm_ok_sim);
+  const primeEgt = simulerPrime_(v.primes.egt.statut !== 'NON_ELIGIBLE',
+                                  egtSim, v.objectif_egt_perso, TAUX_PRIMES.egt, dm_ok_sim);
+
+  // Total
+  const total = primeAcc.montant + primeAte.montant + primeEgt.montant;
+  const auMoinsUne = primeAcc.statut === 'ACQUISE' || primeAte.statut === 'ACQUISE' || primeEgt.statut === 'ACQUISE';
+
+  document.getElementById('sim-result-' + codeVendeur).innerHTML = `
+    <div class="simulator-result-line ${ligneSimClass_(primeAcc)}">
+      <span>ACC</span>
+      <span><span class="montant">${formatEuro(primeAcc.montant)}</span> <span class="meta-sim">${primeAcc.label}</span></span>
+    </div>
+    <div class="simulator-result-line ${ligneSimClass_(primeAte)}">
+      <span>Presta</span>
+      <span><span class="montant">${formatEuro(primeAte.montant)}</span> <span class="meta-sim">${primeAte.label}</span></span>
+    </div>
+    <div class="simulator-result-line ${ligneSimClass_(primeEgt)}">
+      <span>EGT</span>
+      <span><span class="montant">${formatEuro(primeEgt.montant)}</span> <span class="meta-sim">${primeEgt.label}</span></span>
+    </div>
+    <div class="simulator-total ${auMoinsUne ? 'has-acquise' : ''}">
+      <span>Total simulé</span>
+      <span>${formatEuro(total)}</span>
+    </div>
+    <div style="font-size: 10px; color: #888780; text-align: right; margin-top: 4px; font-style: italic;">
+      DM mag : ${dm_pct_sim}% ${dm_ok_sim ? '✓ bonus actif' : '⚠ bonus bloqué'}
+    </div>
+  `;
+}
+
+function simulerPrime_(eligible, realise, seuil, taux, dm_ok) {
+  if (!eligible) return { montant: 0, statut: 'NON_ELIGIBLE', label: 'non éligible' };
+  if (seuil <= 0) return { montant: 0, statut: 'ZERO', label: 'pas de prév' };
+
+  if (realise < seuil) {
+    const pct = Math.round(realise / seuil * 100);
+    return { montant: 0, statut: 'ZERO', label: `à ${pct}% du seuil` };
+  }
+  // Seuil atteint
+  if (dm_ok) {
+    return {
+      montant: Math.round(realise * taux),
+      statut: 'ACQUISE',
+      label: 'acquise (bonus)'
+    };
+  } else {
+    return {
+      montant: Math.round(seuil * taux),
+      statut: 'PLAFONNEE',
+      label: 'plafonnée (DM <90%)'
+    };
+  }
+}
+
+function ligneSimClass_(p) {
+  if (p.statut === 'ACQUISE') return 'acquise';
+  if (p.statut === 'PLAFONNEE') return 'plafonnee';
+  return 'zero';
+}
+
+function resetSimulateur(codeVendeur) {
+  const v = state.vendeurs_cache && state.vendeurs_cache.find(ve => ve.code === codeVendeur);
+  if (!v) return;
+  document.getElementById('sim-acc-' + codeVendeur).value = v.atterrissage_acc;
+  document.getElementById('sim-ate-' + codeVendeur).value = v.atterrissage_atelier;
+  document.getElementById('sim-egt-' + codeVendeur).value = v.cumul_egt;
+  simuler(codeVendeur);
+}
+
+/**
+ * Rendu du bloc "Primes" sur une carte vendeur.
+ * Logique Narbonne :
+ *   - Tant que le seuil pas atteint : on affiche le montant VISÉ (= prev × taux), en gris
+ *   - Quand atteint : on affiche le montant RÉEL TOUCHÉ (= atterrissage × taux), en vert
+ *
+ * Le total se compose des montants visés (pour les pas-encore-acquises)
+ * + montants réels (pour les acquises), donnant une projection cohérente.
+ */
+function renderBlocPrimes_(primes) {
+  if (!primes) return '';
+
+  const aucuneEligible = primes.acc.statut === 'NON_ELIGIBLE'
+                      && primes.presta.statut === 'NON_ELIGIBLE'
+                      && primes.egt.statut === 'NON_ELIGIBLE';
+  if (aucuneEligible) return '';
+
+  // Total : pour chaque prime éligible, on prend acquis si seuil atteint, sinon visé
+  function montantPrime(p) {
+    if (p.statut === 'NON_ELIGIBLE') return 0;
+    if (p.statut === 'ACQUISE') return p.montant_acquis;
+    return p.montant_vise;  // potentiel max visé
+  }
+  const totalProjection = montantPrime(primes.acc)
+                        + montantPrime(primes.presta)
+                        + montantPrime(primes.egt);
+
+  const acquisMaintenant = primes.acc.montant_acquis
+                         + primes.presta.montant_acquis
+                         + primes.egt.montant_acquis;
+
+  const auMoinsUneAcquise = primes.acc.statut === 'ACQUISE'
+                         || primes.presta.statut === 'ACQUISE'
+                         || primes.egt.statut === 'ACQUISE';
+
+  return `
+    <div class="primes-block">
+      <div class="primes-block-title">Primes du mois</div>
+      ${ligneprime_('ACC', primes.acc)}
+      ${ligneprime_('Presta', primes.presta)}
+      ${ligneprime_('EGT', primes.egt)}
+      <div class="primes-total">
+        <span class="label">Acquis maintenant</span>
+        <span class="value ${auMoinsUneAcquise ? 'has-acquise' : ''}">${formatEuro(acquisMaintenant)}</span>
+      </div>
+      <div class="primes-total" style="border-top: none; padding-top: 2px;">
+        <span class="label" style="font-weight: 400; color: #888780;">Projection si prév atteints</span>
+        <span class="value" style="color: #5f5e5a; font-weight: 500;">${formatEuro(totalProjection)}</span>
+      </div>
+    </div>
+  `;
+}
+
+function ligneprime_(label, prime) {
+  // Selon le statut, on affiche le visé (gris) ou l'acquis (vert)
+  let icon, statutClass, montant, meta;
+  switch (prime.statut) {
+    case 'ACQUISE':
+      icon = '✓';
+      statutClass = 'acquise';
+      montant = prime.montant_acquis;
+      meta = 'acquise (' + prime.pct_seuil + '% du seuil)';
+      break;
+    case 'EN_COURS':
+      icon = '⏳';
+      statutClass = 'en-cours';
+      montant = prime.montant_vise;
+      meta = 'visé · à ' + prime.pct_seuil + '% du seuil';
+      break;
+    case 'ELOIGNEE':
+      icon = '○';
+      statutClass = 'eloignee';
+      montant = prime.montant_vise;
+      meta = 'visé · à ' + prime.pct_seuil + '% du seuil';
+      break;
+    case 'NON_ELIGIBLE':
+      icon = '—';
+      statutClass = 'non-eligible';
+      montant = 0;
+      meta = 'non éligible';
+      break;
+    default:
+      icon = '?'; statutClass = ''; montant = 0; meta = '';
+  }
+
+  return `
+    <div class="prime-line ${statutClass}">
+      <span class="ico">${icon}</span>
+      <span class="label">${label}</span>
+      <span class="montant">${formatEuro(montant)}</span>
+      <span class="meta">${meta}</span>
+    </div>
+  `;
+}
+
+// ════════════════════════════════════════════════════════════
+// Utilitaires UI
+// ════════════════════════════════════════════════════════════
+function formatEuro(n) {
+  return new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 }).format(n || 0) + ' €';
+}
+
+function showToast(msg, type) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show ' + (type || '');
+  setTimeout(() => { t.classList.remove('show'); }, 3000);
+}
+
+function setStatusOnline() {
+  document.getElementById('status-dot').className = 'dot';
+  document.getElementById('status-text').textContent = 'En ligne';
+}
+
+function setStatusError() {
+  document.getElementById('status-dot').className = 'dot error';
+  document.getElementById('status-text').textContent = 'Erreur réseau';
+}
+
+// ════════════════════════════════════════════════════════════
+// Enregistrement du Service Worker (PWA installable)
+// ════════════════════════════════════════════════════════════
+if ('serviceWorker' in navigator) {
+  // On enregistre après le chargement de la page pour ne pas ralentir le démarrage
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js')
+      .then(reg => console.log('[App] Service Worker enregistré, scope :', reg.scope))
+      .catch(err => console.warn('[App] SW non enregistré :', err));
+  });
+}
+
+// Permettre de valider le code d'accès en appuyant sur Entrée
+document.getElementById('code-input').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    validerCodeAcces();
+  }
+});
+
+// Démarrer l'app
+init();
+
+// Démarrer la vérification des MAJ en arrière-plan
+demarrerVerifMaj();
+</script>
+
+</body>
+</html>
