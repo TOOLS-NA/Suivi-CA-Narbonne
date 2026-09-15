@@ -1967,32 +1967,46 @@ const API_URL = 'https://script.google.com/macros/s/AKfycbziCZ_zF3FuoBfMNXpkBE_x
 
 // Version locale de l'app (à incrémenter à chaque déploiement).
 // Format: YYYYMMDD-HHMM pour faciliter la comparaison chronologique.
-const APP_VERSION = '20260702-1400';
+const APP_VERSION = '20260915-1200';
 // Intervalle de vérification des MAJ en arrière-plan (5 minutes)
 const VERIF_MAJ_INTERVAL_MS = 5 * 60 * 1000;
 
 const MAGASINS = [
-  { code: '132', nom: 'Montpellier' },
+  { code: '12A', nom: 'Montpellier' },
   { code: '118', nom: 'Aubagne' },
   { code: '110', nom: 'Les Pennes Mirabeau' },
   { code: '130', nom: 'St Étienne' },
   { code: '136', nom: 'Lyon' },
   { code: 'E51', nom: 'Annecy' },
   { code: '10G', nom: 'Mâcon' },
-  { code: '10H', nom: 'Lyon OUTDOOR' }
+  { code: '10H', nom: 'Lyon OUTDOOR' },
+  { code: '121', nom: 'Dax' },
+  { code: '148', nom: 'Lons' },
+  { code: 'E56', nom: 'Périgueux' },
+  { code: '14E', nom: 'Bordeaux Nord' },
+  { code: '14H', nom: 'Bordeaux Sud' },
+  { code: '14K', nom: 'Perpignan' },
+  { code: '14M', nom: 'Béziers' }
 ];
 
 // Codes d'accès par magasin (modérément sécurisé, en clair dans le JS)
 // Si tu changes un code ici, les utilisateurs devront retaper le nouveau.
 const CODES_ACCES = {
-  'MTP132': '132',
-  'AUB118': '118',
-  'PMI110': '110',
-  'STE130': '130',
-  'LYO136': '136',
+  'MTP-12A': '12A',
+  'AUB118':  '118',
+  'PMI110':  '110',
+  'STE130':  '130',
+  'LYO136':  '136',
   'ANN-E51': 'E51',
-  'MAC10G': '10G',
-  'OUT10H': '10H'
+  'MAC10G':  '10G',
+  'OUT10H':  '10H',
+  'DAX-121': '121',
+  'LON-148': '148',
+  'PGX-E56': 'E56',
+  'BXN-14E': '14E',
+  'BXS-14H': '14H',
+  'PER-14K': '14K',
+  'BEZ-14M': '14M'
 };
 
 // Code maître admin : ouvre la liste complète des 8 magasins
