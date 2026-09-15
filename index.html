@@ -259,6 +259,31 @@
     color: #5f5e5a;
     margin-bottom: 6px;
   }
+
+  /* Sous-champ imbriqué (ex: dont sous-traitance sous Atelier) */
+  .field-substrate {
+    margin-top: -8px;
+    margin-left: 24px;
+    padding-left: 12px;
+    border-left: 2px solid #e3e1d8;
+  }
+  .field-label-sub {
+    color: #888780;
+    font-size: 11px;
+    font-style: italic;
+  }
+  .field-substrate .field-input {
+    height: 44px;
+    font-size: 16px;
+    background: #FAFAF7;
+  }
+  .field-hint-sub {
+    font-size: 10px;
+    color: #888780;
+    font-style: italic;
+    margin-top: 4px;
+    padding-left: 4px;
+  }
   .field-input {
     width: 100%;
     height: 56px;
@@ -1740,6 +1765,15 @@
         </div>
       </div>
 
+      <div class="field field-substrate">
+        <label class="field-label field-label-sub">↳ dont sous-traitance</label>
+        <div class="field-input">
+          <input type="number" id="input-soustraitance" inputmode="decimal" placeholder="0" min="0" step="1">
+          <span class="currency">€</span>
+        </div>
+        <div class="field-hint-sub">Partie de l'Atelier en sous-traitance (prime réduite à 1%)</div>
+      </div>
+
       <div class="recap" id="recap-cumul" style="display:none;">
         <div class="recap-line"><span>Dernier cumul enregistré</span></div>
         <div class="recap-line">
@@ -1967,7 +2001,7 @@ const API_URL = 'https://script.google.com/macros/s/AKfycbzoHrDvODIhDHXDWz9tNerT
 
 // Version locale de l'app (à incrémenter à chaque déploiement).
 // Format: YYYYMMDD-HHMM pour faciliter la comparaison chronologique.
-const APP_VERSION = '20260915-1200';
+const APP_VERSION = '20260915-1600';
 // Intervalle de vérification des MAJ en arrière-plan (5 minutes)
 const VERIF_MAJ_INTERVAL_MS = 5 * 60 * 1000;
 
@@ -2645,10 +2679,12 @@ async function prefillerCumulActuel() {
 
     const inputAcc = document.getElementById('input-acc');
     const inputAt = document.getElementById('input-atelier');
+    const inputST = document.getElementById('input-soustraitance');
 
     // Pré-remplir si > 0 (sinon laisser placeholder)
     if (v.cumul_ca_acc > 0) inputAcc.value = v.cumul_ca_acc;
     if (v.cumul_ca_atelier > 0) inputAt.value = v.cumul_ca_atelier;
+    if (v.cumul_soustraitance > 0) inputST.value = v.cumul_soustraitance;
 
     // Afficher le récap si on a déjà un cumul
     if (v.cumul_ca_acc > 0 || v.cumul_ca_atelier > 0) {
@@ -2666,13 +2702,18 @@ async function prefillerCumulActuel() {
 async function validerSaisie() {
   const acc = Number(document.getElementById('input-acc').value) || 0;
   const atelier = Number(document.getElementById('input-atelier').value) || 0;
+  const soustraitance = Number(document.getElementById('input-soustraitance').value) || 0;
 
   if (acc === 0 && atelier === 0) {
     showToast('Saisir au moins un montant', 'error');
     return;
   }
-  if (acc < 0 || atelier < 0) {
+  if (acc < 0 || atelier < 0 || soustraitance < 0) {
     showToast('Les montants doivent être positifs', 'error');
+    return;
+  }
+  if (soustraitance > atelier) {
+    showToast('La sous-traitance ne peut pas dépasser l\'Atelier total', 'error');
     return;
   }
 
@@ -2694,6 +2735,7 @@ async function validerSaisie() {
       vendeur_code: state.vendeur.code,
       montant_acc_ht: acc,
       montant_atelier: atelier,
+      montant_soustraitance: soustraitance,  // Nouveau : partie ST de l'atelier
       source: 'pwa_v1'
     }
   };
