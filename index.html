@@ -2001,7 +2001,7 @@ const API_URL = 'https://script.google.com/macros/s/AKfycbzoHrDvODIhDHXDWz9tNerT
 
 // Version locale de l'app (à incrémenter à chaque déploiement).
 // Format: YYYYMMDD-HHMM pour faciliter la comparaison chronologique.
-const APP_VERSION = '20260915-2100';
+const APP_VERSION = '20260916-0900';
 // Intervalle de vérification des MAJ en arrière-plan (5 minutes)
 const VERIF_MAJ_INTERVAL_MS = 5 * 60 * 1000;
 
@@ -2106,21 +2106,42 @@ async function fetchWithTimeout_(url, options) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Cache mémoire pour dashboard.get
+// Cache dashboard.get — persistant via sessionStorage
 // ═══════════════════════════════════════════════════════════════════════════
 // Le dashboard.get est appelé ~6 fois par écran/vendeur mais renvoie
-// exactement la même chose. On garde le résultat 30 secondes en mémoire.
-// Le cache est invalidé automatiquement après une saisie (invaliderCacheDashboard()).
-const _cacheDashboard = {
-  data: {},       // magasin_code -> { result, timestamp }
-  TTL_MS: 30000   // 30 secondes
-};
+// exactement la même chose. On garde le résultat 30 secondes.
+// Utilise sessionStorage pour persister entre les navigations d'écran de la SPA
+// (mémoire simple perdue au reload sur mobile).
+const CACHE_KEY_DASHBOARD = 'sca_cache_dashboard_v1';
+const CACHE_TTL_MS = 30000;   // 30 secondes
+
+function _lireCacheDashboard() {
+  try {
+    const raw = sessionStorage.getItem(CACHE_KEY_DASHBOARD);
+    return raw ? JSON.parse(raw) : {};
+  } catch (e) {
+    return {};
+  }
+}
+
+function _ecrireCacheDashboard(cache) {
+  try {
+    sessionStorage.setItem(CACHE_KEY_DASHBOARD, JSON.stringify(cache));
+  } catch (e) {
+    // Silencieux : mode privé ou quota atteint
+  }
+}
 
 function invaliderCacheDashboard(magasinCode) {
   if (magasinCode) {
-    delete _cacheDashboard.data[magasinCode];
+    const cache = _lireCacheDashboard();
+    // Supprimer toutes les entrées de ce magasin (toutes périodes)
+    Object.keys(cache).forEach(k => {
+      if (k.startsWith(magasinCode + '|')) delete cache[k];
+    });
+    _ecrireCacheDashboard(cache);
   } else {
-    _cacheDashboard.data = {};
+    try { sessionStorage.removeItem(CACHE_KEY_DASHBOARD); } catch (e) {}
   }
 }
 
@@ -2128,8 +2149,9 @@ async function apiGet(params) {
   // Cache uniquement pour dashboard.get
   if (params.action === 'dashboard.get' && params.magasin_code) {
     const key = params.magasin_code + '|' + (params.periode || '');
-    const cached = _cacheDashboard.data[key];
-    if (cached && (Date.now() - cached.timestamp) < _cacheDashboard.TTL_MS) {
+    const cache = _lireCacheDashboard();
+    const cached = cache[key];
+    if (cached && (Date.now() - cached.timestamp) < CACHE_TTL_MS) {
       // Cache hit → retour instantané
       return cached.result;
     }
@@ -2139,7 +2161,8 @@ async function apiGet(params) {
     const r = await fetchWithTimeout_(url.toString(), { method: 'GET' });
     const result = await r.json();
     if (result.ok) {
-      _cacheDashboard.data[key] = { result: result, timestamp: Date.now() };
+      cache[key] = { result: result, timestamp: Date.now() };
+      _ecrireCacheDashboard(cache);
     }
     return result;
   }
