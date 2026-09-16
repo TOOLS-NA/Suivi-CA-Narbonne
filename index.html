@@ -2001,7 +2001,7 @@ const API_URL = 'https://script.google.com/macros/s/AKfycbzoHrDvODIhDHXDWz9tNerT
 
 // Version locale de l'app (à incrémenter à chaque déploiement).
 // Format: YYYYMMDD-HHMM pour faciliter la comparaison chronologique.
-const APP_VERSION = '20260916-0900';
+const APP_VERSION = '20260916-1000';
 // Intervalle de vérification des MAJ en arrière-plan (5 minutes)
 const VERIF_MAJ_INTERVAL_MS = 5 * 60 * 1000;
 
@@ -2106,14 +2106,18 @@ async function fetchWithTimeout_(url, options) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Cache dashboard.get — persistant via sessionStorage
+// Cache dashboard.get — persistant + déduplication d'appels concurrents
 // ═══════════════════════════════════════════════════════════════════════════
 // Le dashboard.get est appelé ~6 fois par écran/vendeur mais renvoie
 // exactement la même chose. On garde le résultat 30 secondes.
-// Utilise sessionStorage pour persister entre les navigations d'écran de la SPA
-// (mémoire simple perdue au reload sur mobile).
+// - Cache PERSISTANT via sessionStorage (survit à la navigation SPA)
+// - Cache D'APPELS EN COURS (in-flight) : si 2 écrans appellent en //
+//   le même endpoint, le 2ème attend la réponse du 1er au lieu de refaire l'appel.
 const CACHE_KEY_DASHBOARD = 'sca_cache_dashboard_v1';
 const CACHE_TTL_MS = 30000;   // 30 secondes
+
+// Cache d'appels en cours (in-flight requests, en mémoire uniquement)
+const _inflightRequests = {};
 
 function _lireCacheDashboard() {
   try {
@@ -2135,36 +2139,66 @@ function _ecrireCacheDashboard(cache) {
 function invaliderCacheDashboard(magasinCode) {
   if (magasinCode) {
     const cache = _lireCacheDashboard();
-    // Supprimer toutes les entrées de ce magasin (toutes périodes)
     Object.keys(cache).forEach(k => {
       if (k.startsWith(magasinCode + '|')) delete cache[k];
     });
     _ecrireCacheDashboard(cache);
+    // Vider aussi les in-flight de ce magasin
+    Object.keys(_inflightRequests).forEach(k => {
+      if (k.startsWith(magasinCode + '|')) delete _inflightRequests[k];
+    });
   } else {
     try { sessionStorage.removeItem(CACHE_KEY_DASHBOARD); } catch (e) {}
+    Object.keys(_inflightRequests).forEach(k => delete _inflightRequests[k]);
   }
 }
 
 async function apiGet(params) {
-  // Cache uniquement pour dashboard.get
-  if (params.action === 'dashboard.get' && params.magasin_code) {
-    const key = params.magasin_code + '|' + (params.periode || '');
+  // Cache pour dashboard.get ET config.get (les 2 endpoints les plus appelés)
+  const isDashboard = params.action === 'dashboard.get';
+  const isConfig = params.action === 'config.get';
+
+  if ((isDashboard || isConfig) && params.magasin_code) {
+    const key = params.action + '|' + params.magasin_code + '|' + (params.periode || '');
+
+    // 1. Vérifier le cache persistant
     const cache = _lireCacheDashboard();
     const cached = cache[key];
     if (cached && (Date.now() - cached.timestamp) < CACHE_TTL_MS) {
-      // Cache hit → retour instantané
       return cached.result;
     }
-    // Cache miss → appel réseau + mise en cache
+
+    // 2. Vérifier si un appel est déjà en cours pour cette clé (déduplication)
+    if (_inflightRequests[key]) {
+      // Un autre écran attend déjà cette réponse → on partage sa promesse
+      return _inflightRequests[key];
+    }
+
+    // 3. Lancer un nouvel appel et le stocker comme in-flight
     const url = new URL(API_URL);
     Object.keys(params).forEach(k => url.searchParams.append(k, params[k]));
-    const r = await fetchWithTimeout_(url.toString(), { method: 'GET' });
-    const result = await r.json();
-    if (result.ok) {
-      cache[key] = { result: result, timestamp: Date.now() };
-      _ecrireCacheDashboard(cache);
-    }
-    return result;
+
+    const promise = fetchWithTimeout_(url.toString(), { method: 'GET' })
+      .then(r => r.json())
+      .then(result => {
+        // Stocker en cache persistant
+        if (result.ok) {
+          const cache2 = _lireCacheDashboard();
+          cache2[key] = { result: result, timestamp: Date.now() };
+          _ecrireCacheDashboard(cache2);
+        }
+        // Retirer l'in-flight
+        delete _inflightRequests[key];
+        return result;
+      })
+      .catch(err => {
+        // En cas d'erreur, retirer l'in-flight pour permettre un retry
+        delete _inflightRequests[key];
+        throw err;
+      });
+
+    _inflightRequests[key] = promise;
+    return promise;
   }
 
   // Autres actions : appel direct sans cache
