@@ -2001,7 +2001,7 @@ const API_URL = 'https://script.google.com/macros/s/AKfycbzoHrDvODIhDHXDWz9tNerT
 
 // Version locale de l'app (à incrémenter à chaque déploiement).
 // Format: YYYYMMDD-HHMM pour faciliter la comparaison chronologique.
-const APP_VERSION = '20260915-1800';
+const APP_VERSION = '20260915-2100';
 // Intervalle de vérification des MAJ en arrière-plan (5 minutes)
 const VERIF_MAJ_INTERVAL_MS = 5 * 60 * 1000;
 
@@ -2105,7 +2105,46 @@ async function fetchWithTimeout_(url, options) {
   }
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// Cache mémoire pour dashboard.get
+// ═══════════════════════════════════════════════════════════════════════════
+// Le dashboard.get est appelé ~6 fois par écran/vendeur mais renvoie
+// exactement la même chose. On garde le résultat 30 secondes en mémoire.
+// Le cache est invalidé automatiquement après une saisie (invaliderCacheDashboard()).
+const _cacheDashboard = {
+  data: {},       // magasin_code -> { result, timestamp }
+  TTL_MS: 30000   // 30 secondes
+};
+
+function invaliderCacheDashboard(magasinCode) {
+  if (magasinCode) {
+    delete _cacheDashboard.data[magasinCode];
+  } else {
+    _cacheDashboard.data = {};
+  }
+}
+
 async function apiGet(params) {
+  // Cache uniquement pour dashboard.get
+  if (params.action === 'dashboard.get' && params.magasin_code) {
+    const key = params.magasin_code + '|' + (params.periode || '');
+    const cached = _cacheDashboard.data[key];
+    if (cached && (Date.now() - cached.timestamp) < _cacheDashboard.TTL_MS) {
+      // Cache hit → retour instantané
+      return cached.result;
+    }
+    // Cache miss → appel réseau + mise en cache
+    const url = new URL(API_URL);
+    Object.keys(params).forEach(k => url.searchParams.append(k, params[k]));
+    const r = await fetchWithTimeout_(url.toString(), { method: 'GET' });
+    const result = await r.json();
+    if (result.ok) {
+      _cacheDashboard.data[key] = { result: result, timestamp: Date.now() };
+    }
+    return result;
+  }
+
+  // Autres actions : appel direct sans cache
   const url = new URL(API_URL);
   Object.keys(params).forEach(k => url.searchParams.append(k, params[k]));
   const r = await fetchWithTimeout_(url.toString(), { method: 'GET' });
@@ -2124,7 +2163,12 @@ async function apiPost(payload) {
     body: JSON.stringify(payload),
     redirect: 'follow'
   });
-  return r.json();
+  const result = await r.json();
+  // Invalider le cache dashboard si la mutation touche un magasin
+  if (result.ok && payload.magasin_code) {
+    invaliderCacheDashboard(payload.magasin_code);
+  }
+  return result;
 }
 
 /**
@@ -2196,6 +2240,9 @@ async function appliquerMaj() {
   const btn = document.getElementById('btn-maj');
   btn.classList.add('spinning');
   showToast('Mise à jour en cours…', 'success');
+
+  // Vider le cache dashboard mémoire
+  invaliderCacheDashboard();
 
   try {
     // Désinscrire le service worker pour casser le cache PWA
