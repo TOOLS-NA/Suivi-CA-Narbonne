@@ -2001,7 +2001,7 @@ const API_URL = 'https://script.google.com/macros/s/AKfycbzoHrDvODIhDHXDWz9tNerT
 
 // Version locale de l'app (à incrémenter à chaque déploiement).
 // Format: YYYYMMDD-HHMM pour faciliter la comparaison chronologique.
-const APP_VERSION = '20260916-1000';
+const APP_VERSION = '20260921-1000';
 // Intervalle de vérification des MAJ en arrière-plan (5 minutes)
 const VERIF_MAJ_INTERVAL_MS = 5 * 60 * 1000;
 
@@ -2020,7 +2020,11 @@ const MAGASINS = [
   { code: '14E', nom: 'Bordeaux Nord' },
   { code: '14H', nom: 'Bordeaux Sud' },
   { code: '14K', nom: 'Perpignan' },
-  { code: '14M', nom: 'Béziers' }
+  { code: '14M', nom: 'Béziers' },
+  { code: '127', nom: 'Sorgues' },
+  { code: '14G', nom: 'Valence' },
+  { code: '126', nom: 'Grenoble' },
+  { code: '10A', nom: 'Dijon' }
 ];
 
 // Codes d'accès par magasin (modérément sécurisé, en clair dans le JS)
@@ -2040,7 +2044,11 @@ const CODES_ACCES = {
   'BXN-14E': '14E',
   'BXS-14H': '14H',
   'PER-14K': '14K',
-  'BEZ-14M': '14M'
+  'BEZ-14M': '14M',
+  'SOR-127': '127',
+  'VAL-14G': '14G',
+  'GRE-126': '126',
+  'DIJ-10A': '10A'
 };
 
 // Code maître admin : ouvre la liste complète des 8 magasins
