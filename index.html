@@ -1470,6 +1470,9 @@ function moisDepuisTableau(arr){
   return o;
 }
 function tsmActif(){
+  // un TSM importé avant la v31 venait de VisionPubli, vue qui n'est pas à jour :
+  // il masquait le TSM préchargé. On l'écarte.
+  if(E.tsm && !E.tsm.tribus) E.tsm = null;
   if(E.tsm) return E.tsm;
   if(!_tsmPre){
     const sites = {};
@@ -1945,6 +1948,11 @@ function integrerTable(table, z, et){
     return;
   }
   const tsm = (table.classeur && lireTsmTribus(table.classeur)) || lireTsm(table);
+  if(tsm && !tsm.tribus){
+    et.className = "etat ko";
+    et.textContent = "Ce TSM n'a pas les onglets tribu (FLVER, PIGIR…) : seul VisionPubli y figure, et il n'est pas à jour. Le TSM préchargé est conservé.";
+    return;
+  }
   if(tsm){
     E.tsm = tsm; E.sources.tsm = true;
     reprendreTsm(); completerCalculs();
