@@ -2001,7 +2001,7 @@ const API_URL = 'https://script.google.com/macros/s/AKfycbzoHrDvODIhDHXDWz9tNerT
 
 // Version locale de l'app (à incrémenter à chaque déploiement).
 // Format: YYYYMMDD-HHMM pour faciliter la comparaison chronologique.
-const APP_VERSION = '20260921-1000';
+const APP_VERSION = '20260921-1200';
 // Intervalle de vérification des MAJ en arrière-plan (5 minutes)
 const VERIF_MAJ_INTERVAL_MS = 5 * 60 * 1000;
 
@@ -3656,10 +3656,11 @@ function renderRecap(data) {
   // ─── Bloc EGT magasin ───
   html += blocDimEgt_('EGT', m.objectif_egt, m.cumul_egt);
 
-  // ─── Bloc Cartes fidélité magasin (objectif + cumul + reste) ───
+  // ─── Bloc Cartes fidélité magasin (objectif + cumul + reste + cumul saison) ───
   // N'affiche que si l'objectif est défini (sinon pas d'intérêt à montrer)
   if (m.objectif_cartes && m.objectif_cartes > 0) {
-    html += blocDimCartes_('Cartes', m.objectif_cartes, m.cumul_cartes, m.raf_cartes);
+    html += blocDimCartes_('Cartes', m.objectif_cartes, m.cumul_cartes, m.raf_cartes,
+                            m.objectif_cartes_saison, m.cumul_cartes_saison);
   }
 
   // ─── Section vendeurs ───
@@ -3757,11 +3758,26 @@ function blocDimEgt_(label, objectif, cumul) {
  * Bloc dimension cartes fidélité magasin (objectif/cumul/reste en quantités, pas en €).
  * N'affiche que si l'objectif > 0.
  */
-function blocDimCartes_(label, objectif, cumul, raf) {
+function blocDimCartes_(label, objectif, cumul, raf, objectifSaison, cumulSaison) {
   const pct = objectif > 0 ? Math.round(cumul / objectif * 100) : 0;
   let pctClass = 'low';
   if (pct >= 100) pctClass = 'high';
   else if (pct >= 50) pctClass = '';
+
+  // Ligne cumul saison (optionnelle) — affichée uniquement si objectif saison défini
+  let ligneSaison = '';
+  if (objectifSaison && objectifSaison > 0) {
+    const pctSaison = Math.round((cumulSaison || 0) / objectifSaison * 100);
+    let pctSaisonClass = 'low';
+    if (pctSaison >= 100) pctSaisonClass = 'high';
+    else if (pctSaison >= 50) pctSaisonClass = '';
+    ligneSaison = `
+      <div class="dim-line" style="border-top:1px dashed #E3E1D8;padding-top:6px;margin-top:4px;font-size:0.9em">
+        <span style="color:#888780">Saison · ${cumulSaison || 0} / ${objectifSaison}</span>
+        <span class="dim-percent ${pctSaisonClass}">${pctSaison}%</span>
+      </div>
+    `;
+  }
 
   return `
     <div class="dim-block">
@@ -3781,6 +3797,7 @@ function blocDimCartes_(label, objectif, cumul, raf) {
         <span>Reste à faire</span>
         <span class="dim-value">${raf}</span>
       </div>
+      ${ligneSaison}
     </div>
   `;
 }
