@@ -1,7 +1,7 @@
 /* Service worker CRV.
    Stratégie réseau d'abord : le magasin récupère toujours la dernière version
    quand il a du réseau, et retombe sur le cache quand il n'en a pas. */
-const CACHE = "crv-v29";
+const CACHE = "crv-v30";
 const COQUILLE = ["./", "./index.html", "./manifest.json", "./icon.svg"];
 
 self.addEventListener("install", e => {
