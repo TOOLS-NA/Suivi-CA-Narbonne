@@ -886,7 +886,7 @@ function detecterMois(){
   res.presta = moisDeLaPrev(s.total.presta, pe.prestaMois);
   const votes = {};
   (E.vendeurs.mois || []).forEach(v => {
-    const c = s.collabs[codeVendeur(v.nom)];
+    const c = s.collabs[cleCollab(v.nom)];
     const m = (c && v.ca) ? moisDeLaPrev(c.acc, v.ca.prev) : null;
     if(m) votes[m] = (votes[m] || 0) + 1;
   });
@@ -956,13 +956,13 @@ function atterrissage(type){
 }
 function atterrissageCollabs(){
   const vend = (E.vendeurs.mois || []).filter(v => v.ca && v.ca.real > 0);
-  const codes = new Set(vend.map(v => codeVendeur(v.nom)));
+  const codes = new Set(vend.filter(v => !PAS_UNE_PERSONNE.test(v.nom)).map(v => cleCollab(v.nom)));
   // un collaborateur peut avoir une prévision sans avoir vendu : le manque est réel
   const site = siteTsm();
   if(site) Object.keys(site.collabs).forEach(c => { if(!PAS_UNE_PERSONNE.test(c) && !/^VD/i.test(c)) codes.add(c); });
 
   return [...codes].map(c => {
-    const v = vend.find(x => codeVendeur(x.nom) === c);
+    const v = vend.find(x => cleCollab(x.nom) === c);
     const nomTsm = site && site.collabs[c] ? site.collabs[c].nom : null;
     // une prévision à zéro sur le mois n'est pas une prévision
     const brut = prevTsm("acc", c);
@@ -1066,6 +1066,22 @@ const TAILLE_REF = 10;       // taille de l'échantillon de référence
 
 /* code collaborateur : ce qui précède le premier tiret ou souligné.
    Le TSM écrit aussi « BEVOI_VOIDY Benjamin » ou « FRHIR - HIRISSOU François ». */
+/* nom réduit à ses mots, sans accents ni ordre : « PINTO Alexis » = « Alexis PINTO » */
+function motsNom(nom){
+  return String(nom || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase()
+    .replace(/[^a-z0-9 ]+/g, " ").split(" ").filter(Boolean).sort().join(" ");
+}
+/* clé TSM d'un collaborateur des exports : par son code s'il en porte un,
+   sinon par son nom (certains exports donnent « GARCIA Guiliane » sans code) */
+function cleCollab(nom){
+  const code = codeVendeur(nom);
+  const s = (typeof siteTsm === "function") ? siteTsm() : null;
+  if(!s || s.collabs[code]) return code;
+  const cible = motsNom(nomCourt(nom));
+  if(!cible) return code;
+  const k = Object.keys(s.collabs).find(c => motsNom(nomCourt(s.collabs[c].nom)) === cible);
+  return k || code;
+}
 function codeVendeur(nom){
   const s = String(nom || "").trim();
   const m = s.match(/^([A-Za-z0-9]+)\s*[-_]/);
@@ -1107,7 +1123,7 @@ function gmdrDuMagasin(famille){
   const reference = ((E.vendeurs.mois || []).length ? E.vendeurs.mois : (E.vendeurs.saison || []))
     .filter(v => v.ca && v.ca.real > 0);
   if(!reference.length) return [];
-  const miens = new Set(reference.map(v => codeVendeur(v.nom)));
+  const miens = new Set(reference.map(v => cleCollab(v.nom)));
   return liste.filter(r => miens.has(r.code));
 }
 
@@ -1149,7 +1165,7 @@ function croiserCollab(){
   const perfsSaison = E.vendeurs.saison || [];
   const indexer = liste => {
     const o = {};
-    liste.forEach(v => { o[codeVendeur(v.nom)] = v; });
+    liste.forEach(v => { o[cleCollab(v.nom)] = v; });
     return o;
   };
   const parMois = indexer(perfsMois), parSaison = indexer(perfsSaison);
@@ -1442,7 +1458,7 @@ function directeurMagasin(){
    dans l'équipe, le nom sert de repli quand elle n'y figure pas. */
 function responsablePour(q){
   if(!q) return directeurMagasin() || "DM";
-  const code = (typeof q === "object") ? q.code : codeVendeur(q);
+  const code = (typeof q === "object") ? q.code : cleCollab(q);
   const nom  = (typeof q === "object") ? q.nom  : q;
   const c = code ? equipeDuMagasin()[code] : null;
   if(c) return nomCourt(c.nom);
@@ -1553,7 +1569,7 @@ const PDF_COLS = {
 };
 const PDF_PERIODES = [["mois","Mois"],["trimestre","Trimestre"],["exercice","Exercice"],["atelier","Atelier"]];
 /* lignes qui ne sont pas des personnes et ne doivent pas entrer dans les classements */
-const PAS_UNE_PERSONNE = /^(inactif|sstacc|st\d|st1|total)/i;
+const PAS_UNE_PERSONNE = /^(inactif|sstacc|st\d|st1|total|web livraison)/i;
 
 const E = {
   magasin:"", date:"", impressionSV:"", txtSV:"",
@@ -2197,7 +2213,7 @@ function rendreCollab(){
         txt(fmt(v.ossAcc, "eur")),
         delta(ecart(v.ossAcc, v.ossAccN1)),
         txt(fmt(v.caPresta, "eur")));
-      const po = posteDe(codeVendeur(v.nom));
+      const po = posteDe(cleCollab(v.nom));
       return "<tr><td>" + esc(nomCourt(v.nom)) +
              (po ? " <span class='second'>" + esc(po) + "</span>" : "") + "</td>" +
              cases.join("") + "</tr>";
@@ -2480,7 +2496,7 @@ function rendreOssCollab(){
   ((E.gmdr && E.gmdr.acc) || []).forEach(r => { podium[r.code] = r; });
 
   const lignes = perfs.filter(v => v.ca && v.ca.real > 0).map(v => {
-    const p = podium[codeVendeur(v.nom)] || null;
+    const p = podium[cleCollab(v.nom)] || null;
     return {
       nom: nomCourt(v.nom),
       oss:   (v.ossAcc !== undefined && v.ossAcc !== null) ? v.ossAcc : (p ? p.total * 1000 : null),
