@@ -1,34 +1,71 @@
-/* Service worker CRV.
-   Stratégie réseau d'abord : le magasin récupère toujours la dernière version
-   quand il a du réseau, et retombe sur le cache quand il n'en a pas. */
-const CACHE = "crv-v32";
-const COQUILLE = ["./", "./index.html", "./manifest.json", "./icon.svg"];
+/**
+ * Service Worker Suivi CA Narbonne
+ *
+ * Version : 20260922-1200 (à bump à chaque déploiement pour forcer les MAJ)
+ *
+ * Stratégie : network-first / pas de cache agressif.
+ *   - On ne cache PAS index.html : chaque chargement va sur GitHub Pages
+ *     → la dernière version est toujours servie, plus de piège de PWA figée
+ *   - Le SW existe juste pour rendre l'app installable (critère PWA)
+ *   - Au premier chargement, on cache les icônes et manifest (fixes)
+ *
+ * Le bouton "MAJ ↻" dans l'app désinstalle ce SW en cas de besoin.
+ */
 
-self.addEventListener("install", e => {
-  e.waitUntil(caches.open(CACHE).then(c => c.addAll(COQUILLE)).then(() => self.skipWaiting()));
-});
+const CACHE_VERSION = 'suivi-ca-v20260922-1200';
+const STATIC_ASSETS = [
+  './manifest.json',
+  './icons/icon-192.png',
+  './icons/icon-512.png'
+];
 
-self.addEventListener("activate", e => {
-  e.waitUntil(
-    caches.keys()
-      .then(cles => Promise.all(cles.filter(c => c !== CACHE).map(c => caches.delete(c))))
-      .then(() => self.clients.claim())
+// Installation : mise en cache des assets statiques (icônes, manifest)
+self.addEventListener('install', event => {
+  event.waitUntil(
+    caches.open(CACHE_VERSION)
+      .then(cache => cache.addAll(STATIC_ASSETS))
+      .then(() => self.skipWaiting())
+      .catch(() => { /* ignore : le SW s'installe quand même */ })
   );
 });
 
-self.addEventListener("fetch", e => {
-  const req = e.request;
-  if(req.method !== "GET") return;
-  const url = new URL(req.url);
-  if(url.origin !== self.location.origin) return;   // pdf.js et le relais passent en direct
+// Activation : suppression des anciens caches pour éviter d'accumuler
+self.addEventListener('activate', event => {
+  event.waitUntil(
+    caches.keys().then(keys =>
+      Promise.all(
+        keys.filter(k => k !== CACHE_VERSION).map(k => caches.delete(k))
+      )
+    ).then(() => self.clients.claim())
+  );
+});
 
-  e.respondWith(
+// Fetch : network-first pour tout, fallback cache pour les statiques
+self.addEventListener('fetch', event => {
+  const req = event.request;
+
+  // Ignorer les requêtes non-GET (POST vers l'API Apps Script)
+  if (req.method !== 'GET') return;
+
+  // Ignorer les requêtes cross-origin (API Google, etc.)
+  if (!req.url.startsWith(self.location.origin)) return;
+
+  // Network-first : on va chercher la version fraîche à chaque fois
+  event.respondWith(
     fetch(req)
-      .then(rep => {
-        const copie = rep.clone();
-        caches.open(CACHE).then(c => c.put(req, copie));
-        return rep;
+      .then(resp => {
+        // Cacher les statiques au passage (icônes, manifest)
+        const url = new URL(req.url);
+        const isStatic = STATIC_ASSETS.some(a => url.pathname.endsWith(a.replace('./', '')));
+        if (isStatic && resp.ok) {
+          const clone = resp.clone();
+          caches.open(CACHE_VERSION).then(cache => cache.put(req, clone));
+        }
+        return resp;
       })
-      .catch(() => caches.match(req).then(r => r || caches.match("./index.html")))
+      .catch(() => {
+        // Réseau indisponible : essayer le cache
+        return caches.match(req);
+      })
   );
 });
