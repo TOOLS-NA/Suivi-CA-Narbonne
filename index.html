@@ -2001,7 +2001,7 @@ const API_URL = 'https://script.google.com/macros/s/AKfycbzoHrDvODIhDHXDWz9tNerT
 
 // Version locale de l'app (à incrémenter à chaque déploiement).
 // Format: YYYYMMDD-HHMM pour faciliter la comparaison chronologique.
-const APP_VERSION = '20260921-1200';
+const APP_VERSION = '20260922-1200';
 // Intervalle de vérification des MAJ en arrière-plan (5 minutes)
 const VERIF_MAJ_INTERVAL_MS = 5 * 60 * 1000;
 
@@ -3151,7 +3151,7 @@ async function validerCarte() {
     const saisie = {
       id: 'CARTE_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
       type: 'CARTE',
-      date_effet: aujourdhuiIso_(),
+      date_effet: new Date().toISOString().slice(0, 10),  // YYYY-MM-DD
       vendeur_code: state.vendeur.code,
       montant_acc_ht: nb,
       montant_atelier: 0,
