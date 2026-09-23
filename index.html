@@ -2001,7 +2001,7 @@ const API_URL = 'https://script.google.com/macros/s/AKfycbzoHrDvODIhDHXDWz9tNerT
 
 // Version locale de l'app (à incrémenter à chaque déploiement).
 // Format: YYYYMMDD-HHMM pour faciliter la comparaison chronologique.
-const APP_VERSION = '20260923-1400';
+const APP_VERSION = '20260923-1430';
 // Intervalle de vérification des MAJ en arrière-plan (5 minutes)
 const VERIF_MAJ_INTERVAL_MS = 5 * 60 * 1000;
 
@@ -2080,7 +2080,14 @@ const API_TIMEOUT_MS = 45000;
  * Renvoie une erreur avec un message compréhensible pour l'utilisateur final,
  * pas un code HTTP nu ou un "PB journal" cryptique.
  */
-async function fetchWithTimeout_(url, options) {
+// Codes HTTP qu'on peut retenter automatiquement (glitches Google Apps Script,
+// serveurs momentanément indisponibles, rate limits transitoires)
+const HTTP_RECOVERABLE = [404, 408, 429, 500, 502, 503, 504];
+const MAX_RETRIES = 2;              // 3 tentatives au total (1 + 2 retries)
+const RETRY_DELAY_MS = 800;         // délai initial, doublé à chaque retry
+
+async function fetchWithTimeout_(url, options, tentative) {
+  tentative = tentative || 0;
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
 
@@ -2089,7 +2096,12 @@ async function fetchWithTimeout_(url, options) {
     clearTimeout(timeoutId);
 
     if (!r.ok) {
-      // HTTP 4xx / 5xx : le serveur a répondu mais avec une erreur
+      // Retry automatique sur les codes récupérables (404 intermittent Apps Script, 5xx, 429)
+      if (HTTP_RECOVERABLE.indexOf(r.status) !== -1 && tentative < MAX_RETRIES) {
+        await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS * (tentative + 1)));
+        return fetchWithTimeout_(url, options, tentative + 1);
+      }
+      // HTTP 4xx / 5xx définitif : le serveur a répondu mais avec une erreur
       if (r.status === 429) throw new Error('Trop de demandes en même temps, réessaie dans quelques secondes');
       if (r.status === 500) throw new Error('Le serveur a rencontré une erreur, réessaie');
       if (r.status === 503) throw new Error('Le serveur est momentanément indisponible');
@@ -2102,9 +2114,14 @@ async function fetchWithTimeout_(url, options) {
 
     // Timeout ou abandon
     if (err.name === 'AbortError') {
+      // Retry en cas de timeout aussi (cold start Apps Script prend parfois du temps)
+      if (tentative < MAX_RETRIES) {
+        await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS * (tentative + 1)));
+        return fetchWithTimeout_(url, options, tentative + 1);
+      }
       throw new Error('Réponse trop longue (>45s). Vérifie ta connexion, réessaie ou clique sur ↻');
     }
-    // Réseau indisponible (mode avion, WiFi coupé…)
+    // Réseau indisponible (mode avion, WiFi coupé…) - pas de retry, c'est structurel
     if (err.message === 'Failed to fetch' || err.message.includes('NetworkError')) {
       throw new Error('Pas de connexion internet. Vérifie ton WiFi/4G puis réessaie');
     }
