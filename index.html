@@ -2001,7 +2001,7 @@ const API_URL = 'https://script.google.com/macros/s/AKfycbzoHrDvODIhDHXDWz9tNerT
 
 // Version locale de l'app (à incrémenter à chaque déploiement).
 // Format: YYYYMMDD-HHMM pour faciliter la comparaison chronologique.
-const APP_VERSION = '20260922-1200';
+const APP_VERSION = '20260923-1400';
 // Intervalle de vérification des MAJ en arrière-plan (5 minutes)
 const VERIF_MAJ_INTERVAL_MS = 5 * 60 * 1000;
 
@@ -3624,11 +3624,11 @@ async function chargerRecap() {
 
 // Paramètres prime du magasin (taux), mémorisés au chargement du Récap.
 // Utilisés par le simulateur côté frontend, qui ne fait pas d'appel API.
-// On les approxime à partir des données vendeurs (taux Narbonne fixes).
+// Taux DOP 2026-2027 (au lieu des anciens taux Narbonne 0.7%/2.75%).
 const TAUX_PRIMES = {
-  acc: 0.007,       // 0,7%
-  presta: 0.0275,   // 2,75%
-  egt: 0.10         // 10%
+  acc: 0.005,       // 0,5% (PMA DOP 2026-2027)
+  presta: 0.04,     // 4% (PMPV DOP 2026-2027)
+  egt: 0.10         // 10% (PM EGT DOP 2026-2027)
 };
 
 function renderRecap(data) {
