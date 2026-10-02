@@ -2010,13 +2010,20 @@
         </div>
       </div>
 
-      <label class="cmd-facturable-row" for="cmd-facturable">
-        <input type="checkbox" id="cmd-facturable" class="cmd-facturable-checkbox">
-        <span class="cmd-facturable-text">
-          <strong>À facturer ce mois</strong>
-          <small>Si coché, la commande compte dans le potentiel du mois courant</small>
-        </span>
-      </label>
+      <div class="field">
+        <label class="field-label">EGT (optionnel)</label>
+        <div class="field-input">
+          <input type="number" id="cmd-egt" inputmode="decimal" placeholder="0" min="0" step="1">
+          <span class="currency">€</span>
+        </div>
+      </div>
+
+      <div class="field">
+        <label class="field-label">📅 Mois de facturation</label>
+        <select id="cmd-mois-facturation" class="field-input-text" style="font-size:15px;padding:12px">
+          <!-- Options générées en JS (sept 2026 → août 2027) -->
+        </select>
+      </div>
 
       <div class="recap" id="recap-cmd">
         <div class="recap-line"><span>Potentiel du mois après cette commande</span></div>
@@ -2187,7 +2194,7 @@ const API_URL = 'https://script.google.com/macros/s/AKfycbzoHrDvODIhDHXDWz9tNerT
 
 // Version locale de l'app (à incrémenter à chaque déploiement).
 // Format: YYYYMMDD-HHMM pour faciliter la comparaison chronologique.
-const APP_VERSION = '20261002-1000';  // +import TAC Podium
+const APP_VERSION = '20261002-1200';  // +mois_facturation (commandes) + EGT dans cmd + filtre cmd par vendeur
 // Intervalle de vérification des MAJ en arrière-plan (5 minutes)
 const VERIF_MAJ_INTERVAL_MS = 5 * 60 * 1000;
 
@@ -2912,14 +2919,16 @@ function choisirVendeur(v) {
   document.getElementById('input-acc').value = '';
   document.getElementById('input-atelier').value = '';
   document.getElementById('recap-cumul').classList.remove('show');
-  // Reset formulaire Commande
+  // Reset formulaire Commande (évol oct 2026)
   document.getElementById('cmd-client').value = '';
   document.getElementById('cmd-denom').value = '';
   document.getElementById('cmd-date-pose').value = '';
   document.getElementById('cmd-acc').value = '';
   document.getElementById('cmd-atelier').value = '';
-  document.getElementById('cmd-facturable').checked = false;
+  document.getElementById('cmd-egt').value = '';
   document.getElementById('recap-cmd').classList.remove('show');
+  // Peupler le menu déroulant "Mois de facturation" (sept 2026 → août 2027)
+  peuplerMoisFacturation_();
   // Reset formulaire EGT
   document.getElementById('egt-client').value = '';
   document.getElementById('egt-denom').value = '';
@@ -2928,6 +2937,33 @@ function choisirVendeur(v) {
   // Réinitialiser sur l'onglet CA par défaut
   switchTab('ca');
   showScreen('screen-saisie');
+}
+
+/**
+ * Peuple le <select> cmd-mois-facturation avec les 12 mois de l'exercice fiscal
+ * en cours (sept N → août N+1), défaut sur le mois en cours.
+ */
+function peuplerMoisFacturation_() {
+  const sel = document.getElementById('cmd-mois-facturation');
+  if (!sel) return;
+  const now = new Date();
+  const curY = now.getFullYear();
+  const curM = now.getMonth() + 1;  // 1-12
+  // Année de début de l'exercice : sept année courante si on est entre sept et déc, sinon année précédente
+  const anneeDebut = (curM >= 9) ? curY : curY - 1;
+  const libMois = ['janvier','février','mars','avril','mai','juin',
+                   'juillet','août','septembre','octobre','novembre','décembre'];
+  const curPeriode = curY + '-' + String(curM).padStart(2, '0');
+  let html = '';
+  for (let i = 0; i < 12; i++) {
+    const moisReel = ((i + 7) % 12) + 1;  // 1→sept, 2→oct, ..., 5→janv, ..., 12→août
+    const anneeReel = (i < 4) ? anneeDebut : anneeDebut + 1;
+    const periode = anneeReel + '-' + String(moisReel).padStart(2, '0');
+    const libelle = libMois[moisReel - 1].charAt(0).toUpperCase() + libMois[moisReel - 1].slice(1) + ' ' + anneeReel;
+    const sel_attr = (periode === curPeriode) ? ' selected' : '';
+    html += '<option value="' + periode + '"' + sel_attr + '>' + libelle + '</option>';
+  }
+  sel.innerHTML = html;
 }
 
 function changerVendeur() {
@@ -3085,7 +3121,8 @@ async function validerCommande() {
   const datePose = document.getElementById('cmd-date-pose').value;  // string YYYY-MM-DD ou ''
   const acc = Number(document.getElementById('cmd-acc').value) || 0;
   const atelier = Number(document.getElementById('cmd-atelier').value) || 0;
-  const facturable = document.getElementById('cmd-facturable').checked;
+  const egt = Number(document.getElementById('cmd-egt').value) || 0;
+  const moisFact = document.getElementById('cmd-mois-facturation').value;  // "2026-11" par ex.
 
   // Validations
   if (!client) {
@@ -3096,12 +3133,16 @@ async function validerCommande() {
     showToast('Saisir la désignation', 'error');
     return;
   }
-  if (acc === 0 && atelier === 0) {
+  if (acc === 0 && atelier === 0 && egt === 0) {
     showToast('Saisir au moins un montant', 'error');
     return;
   }
-  if (acc < 0 || atelier < 0) {
+  if (acc < 0 || atelier < 0 || egt < 0) {
     showToast('Les montants doivent être positifs', 'error');
+    return;
+  }
+  if (!/^\d{4}-\d{2}$/.test(moisFact)) {
+    showToast('Choisir un mois de facturation', 'error');
     return;
   }
 
@@ -3119,10 +3160,12 @@ async function validerCommande() {
     vendeur_code: state.vendeur.code,
     montant_acc_ht: acc,
     montant_atelier: atelier,
+    montant_egt: egt,
     client_nom: client.toUpperCase(),
     denomination: denom,
-    facturable_mois: facturable,
-    source: 'pwa_v1'
+    mois_facturation: moisFact,       // évol oct 2026
+    facturable_mois: true,             // la coche historique devient toujours true (le mois pilote maintenant)
+    source: 'pwa_v2'
   };
   if (datePose) saisie.date_pose = datePose;
 
@@ -3142,13 +3185,13 @@ async function validerCommande() {
     document.getElementById('recap-cmd-atelier').textContent = formatEuro(t.potentiel_atelier) + ' Atelier';
     document.getElementById('recap-cmd').classList.add('show');
 
-    // Vider les champs pour la prochaine commande
+    // Vider les champs pour la prochaine commande (sauf mois_facturation : on garde)
     document.getElementById('cmd-client').value = '';
     document.getElementById('cmd-denom').value = '';
     document.getElementById('cmd-date-pose').value = '';
     document.getElementById('cmd-acc').value = '';
     document.getElementById('cmd-atelier').value = '';
-    document.getElementById('cmd-facturable').checked = false;
+    document.getElementById('cmd-egt').value = '';
 
     showToast('Commande enregistrée', 'success');
     setStatusOnline();
@@ -3562,7 +3605,13 @@ async function chargerCommandesEnCours() {
     '<div class="recap-loading"><span class="loader-spinner"></span> Chargement…</div>';
 
   try {
-    const r = await apiGet({ action: 'dashboard.get', magasin_code: state.magasin.code });
+    // Évol oct 2026 : AC/DM voient uniquement LEURS commandes. On passe vendeur_code au backend
+    // qui filtre côté serveur. Un admin (NARBADMIN) qui n'a pas de vendeur sélectionné voit tout.
+    const params = { action: 'dashboard.get', magasin_code: state.magasin.code };
+    if (state.vendeur && state.vendeur.code) {
+      params.vendeur_code = state.vendeur.code;
+    }
+    const r = await apiGet(params);
     if (!r.ok) throw new Error(r.error.message || 'Erreur backend');
 
     // Mémoriser pour le filtrage côté client
@@ -3646,19 +3695,23 @@ function renderCommandesEnCours(commandes, vendeurs) {
     return;
   }
 
-  // Compteurs : total portefeuille + cochées facturables ce mois
-  const nbFact = commandes.filter(c => c.facturable_mois).length;
-  const totalAccFact = commandes.filter(c => c.facturable_mois).reduce((s, c) => s + (c.montant_acc_ht || 0), 0);
-  const totalAtFact = commandes.filter(c => c.facturable_mois).reduce((s, c) => s + (c.montant_atelier || 0), 0);
+  // Évol oct 2026 : les commandes "facturables ce mois" sont celles dont mois_facturation = mois courant
+  const now = new Date();
+  const periodeCourante = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+  const commandesMois = commandes.filter(c => c.mois_facturation === periodeCourante);
+  const totalAccFact = commandesMois.reduce((s, c) => s + (c.montant_acc_ht || 0), 0);
+  const totalAtFact = commandesMois.reduce((s, c) => s + (c.montant_atelier || 0), 0);
+  const totalEgtFact = commandesMois.reduce((s, c) => s + (c.montant_egt || 0), 0);
+  const nbMois = commandesMois.length;
 
   const header = `
     <div class="encours-summary">
       <div class="encours-summary-line"><strong>${commandes.length}</strong> commande${commandes.length > 1 ? 's' : ''} au portefeuille</div>
       <div class="encours-summary-line">
-        <strong>${nbFact}</strong> facturable${nbFact > 1 ? 's' : ''} ce mois →
-        <span class="encours-summary-tot">${formatEuro(totalAccFact)} ACC + ${formatEuro(totalAtFact)} Atelier</span>
+        <strong>${nbMois}</strong> ce mois →
+        <span class="encours-summary-tot">${formatEuro(totalAccFact)} ACC + ${formatEuro(totalAtFact)} Atelier${totalEgtFact > 0 ? ' + ' + formatEuro(totalEgtFact) + ' EGT' : ''}</span>
       </div>
-      <div class="encours-summary-hint">💡 Coche les commandes que tu vas facturer ce mois pour les ajouter au potentiel.</div>
+      <div class="encours-summary-hint">💡 Chaque commande est rattachée à son mois de facturation. Les autres sont dans le pipe des mois à venir.</div>
     </div>
   `;
 
@@ -3680,16 +3733,17 @@ function renderCommandesEnCours(commandes, vendeurs) {
       dateHtml = '<span class="date-pose no-date">Pose non datée</span>';
     }
 
-    const checked = c.facturable_mois ? 'checked' : '';
-    const cardClass = c.facturable_mois ? 'cmd-card facturable' : 'cmd-card';
+    const cardClass = 'cmd-card facturable';
+    // Évol oct 2026 : affichage du mois de facturation + EGT (si > 0)
+    const moisFactLib = c.mois_facturation ? formatMois_(c.mois_facturation) : '—';
+    const egtBloc = (c.montant_egt && c.montant_egt > 0) ? `
+          <div class="cmd-card-amount">
+            <div class="label">EGT</div>
+            <div class="value">${formatEuro(c.montant_egt)}</div>
+          </div>` : '';
 
     return `
       <div class="${cardClass}" data-id="${c.id}">
-        <label class="cmd-checkbox-label">
-          <input type="checkbox" class="cmd-checkbox" ${checked}
-                 onchange="actionToggleFacturable('${c.id}', this.checked)">
-          <span class="cmd-checkbox-text">Facturer ce mois</span>
-        </label>
         <div class="cmd-card-client">${escapeHtml_(c.client_nom || '—')}</div>
         <div class="cmd-card-denom">${escapeHtml_(c.denomination || '—')}</div>
         <div class="cmd-card-meta">
@@ -3697,6 +3751,8 @@ function renderCommandesEnCours(commandes, vendeurs) {
           <span>${escapeHtml_(c.vendeur_nom || c.vendeur_code)}</span>
           <span class="sep">·</span>
           ${dateHtml}
+          <span class="sep">·</span>
+          <span class="cmd-card-mois">📅 ${moisFactLib}</span>
         </div>
         <div class="cmd-card-amounts">
           <div class="cmd-card-amount">
@@ -3706,7 +3762,7 @@ function renderCommandesEnCours(commandes, vendeurs) {
           <div class="cmd-card-amount">
             <div class="label">Atelier</div>
             <div class="value">${formatEuro(c.montant_atelier)}</div>
-          </div>
+          </div>${egtBloc}
         </div>
         <div class="cmd-card-actions">
           <button class="cmd-btn cmd-btn-invoice" onclick="actionRetirerCommande('${c.id}')">
