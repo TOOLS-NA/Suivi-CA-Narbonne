@@ -2265,7 +2265,7 @@ const API_URL = 'https://script.google.com/macros/s/AKfycbzoHrDvODIhDHXDWz9tNerT
 
 // Version locale de l'app (à incrémenter à chaque déploiement).
 // Format: YYYYMMDD-HHMM pour faciliter la comparaison chronologique.
-const APP_VERSION = '20261002-1645';  // +UI changer vendeur sur Cmd en cours
+const APP_VERSION = '20261002-1715';  // Fix cache frontend : vendeur_code dans la clé
 // Intervalle de vérification des MAJ en arrière-plan (5 minutes)
 const VERIF_MAJ_INTERVAL_MS = 5 * 60 * 1000;
 
@@ -2449,7 +2449,11 @@ async function apiGet(params) {
   const isConfig = params.action === 'config.get';
 
   if ((isDashboard || isConfig) && params.magasin_code) {
-    const key = params.action + '|' + params.magasin_code + '|' + (params.periode || '');
+    // La clé inclut vendeur_code car dashboard.get renvoie désormais les commandes
+    // filtrées sur le vendeur (évol oct 2026). Sans ça, deux vendeurs du même
+    // magasin verraient la même liste cachée.
+    const key = params.action + '|' + params.magasin_code + '|' + (params.periode || '') +
+                '|v=' + (params.vendeur_code || 'all');
 
     // 1. Vérifier le cache persistant
     const cache = _lireCacheDashboard();
