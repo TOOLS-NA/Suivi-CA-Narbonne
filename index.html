@@ -1476,6 +1476,47 @@
     gap: 10px;
   }
 
+  /* Segmented control : Mois · T · S · An (au-dessus du Récap) */
+  .seg-wrap {
+    margin: 4px 0 14px 0;
+  }
+  .seg-control {
+    display: flex;
+    gap: 0;
+    background: #f5f4ee;
+    border-radius: 10px;
+    padding: 3px;
+    border: 1px solid #e3e1d8;
+  }
+  .seg-btn {
+    flex: 1;
+    padding: 8px 4px;
+    background: transparent;
+    border: none;
+    border-radius: 7px;
+    font-size: 13px;
+    color: #5f5e5a;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+    font-family: inherit;
+  }
+  .seg-btn:active { transform: scale(0.98); }
+  .seg-btn.active {
+    background: white;
+    color: #1D9E75;
+    font-weight: 600;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  }
+  .seg-label {
+    margin-top: 8px;
+    text-align: center;
+    font-size: 12px;
+    color: #888780;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+  }
+
   /* Bloc de dimension (ACC / Atelier / EGT) */
   .dim-block {
     background: white;
@@ -2001,7 +2042,7 @@ const API_URL = 'https://script.google.com/macros/s/AKfycbzoHrDvODIhDHXDWz9tNerT
 
 // Version locale de l'app (à incrémenter à chaque déploiement).
 // Format: YYYYMMDD-HHMM pour faciliter la comparaison chronologique.
-const APP_VERSION = '20260923-1430';
+const APP_VERSION = '20260930-1700';  // +projections T/S/An
 // Intervalle de vérification des MAJ en arrière-plan (5 minutes)
 const VERIF_MAJ_INTERVAL_MS = 5 * 60 * 1000;
 
@@ -2061,6 +2102,7 @@ const state = {
   magasin: null,    // { code, nom }
   vendeurs: [],     // chargés depuis config.get
   vendeur: null,    // vendeur actuellement sélectionné
+  vue_periode: 'mois',  // 'mois' | 'trimestre' | 'semestre' | 'annuel' (segmented control Récap)
 };
 
 // ════════════════════════════════════════════════════════════
@@ -2501,6 +2543,7 @@ function renderSelectionMagasin() {
 
 function choisirMagasin(mag) {
   state.magasin = mag;
+  state.vue_periode = 'mois';   // à chaque nouveau magasin, on revient sur la vue mois
   localStorage.setItem('magasin_code', mag.code);
   document.getElementById('topbar-magasin').textContent = mag.nom;
   chargerVendeurs();
@@ -3657,47 +3700,106 @@ function renderRecap(data) {
     dm_ok: m.dm_ok,
     dm_pct: m.dm_pct
   };
+  // Mémoriser les données pour le re-render sans appel API (segmented control T/S/An)
+  state.recap_data = data;
   // Mémoriser les données vendeurs pour le simulateur (calculs en JS pur sans appel API)
   state.vendeurs_cache = data.vendeurs;
 
+  renderRecapContenu_();
+}
+
+/**
+ * Rend le contenu du Récap selon state.vue_periode (mois / trim / sem / annuel).
+ * Appelé à chaque changement de vue sans nouvel appel API — toutes les vues
+ * sont déjà pré-calculées côté backend dans data.magasin.vues et data.vendeurs[].vues.
+ */
+function renderRecapContenu_() {
+  const data = state.recap_data;
+  if (!data) return;
+  const m = data.magasin;
+  const vue = state.vue_periode || 'mois';
+  // Vues pré-calculées côté backend. Si absentes (ancien backend), on retombe sur les champs plats.
+  const v = (m.vues && m.vues[vue]) ? m.vues[vue] : {
+    prev_acc: m.prev_acc, prev_mo: m.prev_mo, objectif_cartes: m.objectif_cartes,
+    cumul_ca_acc: m.cumul_ca_acc, cumul_ca_mo: m.cumul_ca_mo,
+    potentiel_acc: m.potentiel_acc, potentiel_mo: m.potentiel_mo,
+    atterrissage_acc: m.atterrissage_acc, atterrissage_mo: m.atterrissage_mo,
+    raf_acc: m.raf_acc, raf_mo: m.raf_mo, raf_cartes: m.raf_cartes,
+    objectif_egt: m.objectif_egt, cumul_egt: m.cumul_egt, cumul_cartes: m.cumul_cartes,
+    label: ''
+  };
+
   let html = '';
+
+  // ─── Segmented control : Mois / T / S / An ───
+  html += segmentedControlPeriode_(vue, v.label);
 
   // ─── Bloc ACC magasin ───
   html += blocDim_('ACC',
-    m.prev_acc, m.cumul_ca_acc, m.potentiel_acc, m.atterrissage_acc, m.raf_acc, m.prev_acc);
+    v.prev_acc, v.cumul_ca_acc, v.potentiel_acc, v.atterrissage_acc, v.raf_acc, v.prev_acc);
 
   // ─── Bloc Atelier magasin ───
   html += blocDim_('Atelier',
-    m.prev_mo, m.cumul_ca_mo, m.potentiel_mo, m.atterrissage_mo, m.raf_mo, m.prev_mo);
+    v.prev_mo, v.cumul_ca_mo, v.potentiel_mo, v.atterrissage_mo, v.raf_mo, v.prev_mo);
 
   // ─── Bloc EGT magasin ───
-  html += blocDimEgt_('EGT', m.objectif_egt, m.cumul_egt);
+  html += blocDimEgt_('EGT', v.objectif_egt, v.cumul_egt);
 
-  // ─── Bloc Cartes fidélité magasin (objectif + cumul + reste + cumul saison) ───
-  // N'affiche que si l'objectif est défini (sinon pas d'intérêt à montrer)
-  if (m.objectif_cartes && m.objectif_cartes > 0) {
-    html += blocDimCartes_('Cartes', m.objectif_cartes, m.cumul_cartes, m.raf_cartes,
+  // ─── Bloc Cartes fidélité magasin ───
+  // Sur les vues T/S/An on affiche la somme des objectifs mensuels de la période.
+  // La ligne "cumul saison" reste basée sur les champs racine (déjà agrégés côté backend).
+  if (v.objectif_cartes && v.objectif_cartes > 0) {
+    html += blocDimCartes_('Cartes', v.objectif_cartes, v.cumul_cartes, v.raf_cartes,
                             m.objectif_cartes_saison, m.cumul_cartes_saison);
   }
 
   // ─── Section vendeurs ───
   html += '<div class="vendeur-section-title">Vendeurs</div>';
 
-  data.vendeurs.forEach(v => {
-    html += carteVendeur_(v);
+  data.vendeurs.forEach(vend => {
+    html += carteVendeur_(vend, vue);
   });
 
   document.getElementById('recap-content').innerHTML = html;
 
-  // Déclencher un calcul initial du simulateur pour chaque vendeur
-  // (affiche les primes simulées dès l'ouverture, égales aux primes réelles)
-  data.vendeurs.forEach(v => {
-    if (v.primes && (v.primes.acc.statut !== 'NON_ELIGIBLE'
-                  || v.primes.presta.statut !== 'NON_ELIGIBLE'
-                  || v.primes.egt.statut !== 'NON_ELIGIBLE')) {
-      simuler(v.code);
+  // Déclencher un calcul initial du simulateur pour chaque vendeur (basé sur les données mois — les primes DOP sont mensuelles)
+  data.vendeurs.forEach(vend => {
+    if (vend.primes && (vend.primes.acc.statut !== 'NON_ELIGIBLE'
+                     || vend.primes.presta.statut !== 'NON_ELIGIBLE'
+                     || vend.primes.egt.statut !== 'NON_ELIGIBLE')) {
+      simuler(vend.code);
     }
   });
+}
+
+/**
+ * Bouton du segmented control : change la vue sans appel API.
+ */
+function changerVuePeriode(v) {
+  state.vue_periode = v;
+  renderRecapContenu_();
+}
+
+/**
+ * HTML du segmented control [Mois · T · S · An] + libellé de la période active.
+ */
+function segmentedControlPeriode_(vueActive, labelPeriode) {
+  function seg_(code, label) {
+    const cls = (vueActive === code) ? 'seg-btn active' : 'seg-btn';
+    return `<button class="${cls}" onclick="changerVuePeriode('${code}')">${label}</button>`;
+  }
+  const label = labelPeriode ? `<div class="seg-label">${labelPeriode}</div>` : '';
+  return `
+    <div class="seg-wrap">
+      <div class="seg-control">
+        ${seg_('mois', 'Mois')}
+        ${seg_('trimestre', 'T')}
+        ${seg_('semestre', 'S')}
+        ${seg_('annuel', 'An')}
+      </div>
+      ${label}
+    </div>
+  `;
 }
 
 /**
@@ -3822,16 +3924,28 @@ function blocDimCartes_(label, objectif, cumul, raf, objectifSaison, cumulSaison
 /**
  * Carte récap pour un vendeur : 3 colonnes (ACC, Atelier, EGT) × 5 lignes (Prév, CA, Pot, Att, RAF).
  */
-function carteVendeur_(v) {
-  const accAtt = v.atterrissage_acc;
-  const accPrev = v.prev_acc_perso;
-  const accRaf = Math.max(0, accPrev - accAtt);
-  const ateAtt = v.atterrissage_atelier;
-  const atePrev = v.prev_atelier_perso;
-  const ateRaf = Math.max(0, atePrev - ateAtt);
-  const egtObj = v.objectif_egt_perso;
-  const egtCumul = v.cumul_egt;
-  const egtRaf = Math.max(0, egtObj - egtCumul);
+function carteVendeur_(v, vueP) {
+  // vueP = 'mois' | 'trimestre' | 'semestre' | 'annuel' (défaut : mois)
+  // Si v.vues[vueP] existe (backend ≥ 1.1.0), on affiche les valeurs de la vue.
+  // Sinon on retombe sur les champs plats (rétro-compatibilité).
+  const vue = vueP || 'mois';
+  const vv = (v.vues && v.vues[vue]) ? v.vues[vue] : null;
+
+  const accAtt   = vv ? vv.atterrissage_acc : v.atterrissage_acc;
+  const accPrev  = vv ? vv.prev_acc         : v.prev_acc_perso;
+  const accRaf   = vv ? vv.raf_acc          : Math.max(0, accPrev - accAtt);
+  const accCumul = vv ? vv.cumul_ca_acc     : v.cumul_ca_acc;
+  const accPot   = vv ? vv.potentiel_acc    : v.potentiel_acc;
+
+  const ateAtt   = vv ? vv.atterrissage_mo  : v.atterrissage_atelier;
+  const atePrev  = vv ? vv.prev_mo          : v.prev_atelier_perso;
+  const ateRaf   = vv ? vv.raf_mo           : Math.max(0, atePrev - ateAtt);
+  const ateCumul = vv ? vv.cumul_ca_mo      : v.cumul_ca_atelier;
+  const atePot   = vv ? vv.potentiel_mo     : v.potentiel_atelier;
+
+  const egtObj   = vv ? vv.objectif_egt     : v.objectif_egt_perso;
+  const egtCumul = vv ? vv.cumul_egt        : v.cumul_egt;
+  const egtRaf   = Math.max(0, egtObj - egtCumul);
 
   let roleTag = '';
   if (v.role === 'DM') roleTag = '<span class="role-tag">DM</span>';
@@ -3858,14 +3972,14 @@ function carteVendeur_(v) {
         <div class="val">${formatEuro(atePrev)}</div>
         <div class="val">${formatEuro(egtObj)}</div>
 
-        <div class="col-label">CA jour</div>
-        <div class="val">${formatEuro(v.cumul_ca_acc)}</div>
-        <div class="val">${formatEuro(v.cumul_ca_atelier)}</div>
+        <div class="col-label">${vue === 'mois' ? 'CA jour' : 'CA réel'}</div>
+        <div class="val">${formatEuro(accCumul)}</div>
+        <div class="val">${formatEuro(ateCumul)}</div>
         <div class="val">—</div>
 
         <div class="col-label">Potentiel</div>
-        <div class="val">${formatEuro(v.potentiel_acc)}</div>
-        <div class="val">${formatEuro(v.potentiel_atelier)}</div>
+        <div class="val">${formatEuro(accPot)}</div>
+        <div class="val">${formatEuro(atePot)}</div>
         <div class="val">—</div>
 
         <div class="col-label">Atterrissage</div>
