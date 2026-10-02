@@ -370,6 +370,115 @@
   }
   .btn-secondary:active { background: #f5f4ee; }
 
+  /* Bouton import TAC (encart magasin) */
+  .btn-tac {
+    width: 100%;
+    padding: 12px 14px;
+    margin-top: 18px;
+    background: #f0f8f5;
+    color: #0F6E56;
+    border: 1px dashed #1D9E75;
+    border-radius: 12px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 0.15s;
+  }
+  .btn-tac:active { background: #e1f1ea; }
+
+  /* Modal générique */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(44,44,42,0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+    padding: 16px;
+  }
+  .modal-card {
+    background: white;
+    border-radius: 16px;
+    width: 100%;
+    max-width: 420px;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.25);
+  }
+  .modal-header {
+    padding: 16px 18px 10px 18px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid #f0efe9;
+  }
+  .modal-header h3 { margin: 0; font-size: 16px; color: #2c2c2a; }
+  .modal-close {
+    background: transparent;
+    border: none;
+    font-size: 24px;
+    color: #888780;
+    cursor: pointer;
+    line-height: 1;
+    padding: 4px 10px;
+    border-radius: 6px;
+  }
+  .modal-close:hover { background: #f5f4ee; }
+  .modal-body { padding: 16px 18px; }
+  .modal-footer {
+    padding: 10px 18px 16px 18px;
+    display: flex;
+    gap: 10px;
+    border-top: 1px solid #f0efe9;
+  }
+  .modal-footer .btn-primary,
+  .modal-footer .btn-secondary {
+    margin-top: 0;
+    flex: 1;
+  }
+
+  /* Dropzone upload PDF */
+  .tac-dropzone {
+    border: 2px dashed #d0cfc5;
+    border-radius: 12px;
+    padding: 24px 16px;
+    text-align: center;
+    cursor: pointer;
+    background: #fafaf7;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .tac-dropzone:hover { border-color: #1D9E75; background: #f0f8f5; }
+  .tac-dropzone.dragover { border-color: #1D9E75; background: #e1f1ea; }
+
+  /* Résultat import TAC */
+  .tac-result-ok {
+    background: #e1f5ee;
+    border: 1px solid #1D9E75;
+    color: #0F6E56;
+    padding: 12px;
+    border-radius: 10px;
+    font-size: 13px;
+  }
+  .tac-result-ko {
+    background: #fdeee6;
+    border: 1px solid #d85a30;
+    color: #a83a16;
+    padding: 12px;
+    border-radius: 10px;
+    font-size: 13px;
+  }
+  .tac-result-table {
+    margin-top: 10px;
+    width: 100%;
+    font-size: 12px;
+    border-collapse: collapse;
+  }
+  .tac-result-table td { padding: 4px 6px; border-bottom: 1px solid #f0efe9; }
+  .tac-result-table td:nth-child(2),
+  .tac-result-table td:nth-child(3) { text-align: right; font-variant-numeric: tabular-nums; }
+
   /* ────────────────────────────────────────────────────────────
      Toast & loading
      ──────────────────────────────────────────────────────────── */
@@ -1758,7 +1867,43 @@
     <div class="btn-list" id="liste-vendeurs">
       <div class="loading">Chargement des vendeurs…</div>
     </div>
+    <button class="btn-tac" onclick="ouvrirImportTac()">📥 Importer TAC Podium (PDF)</button>
     <button class="btn-secondary" onclick="changerMagasin()">Changer de magasin</button>
+  </div>
+
+  <!-- Modal : Import TAC Podium -->
+  <div id="modal-tac" class="modal-overlay" style="display:none">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>Import TAC Podium</h3>
+        <button class="modal-close" onclick="fermerImportTac()" aria-label="Fermer">×</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size:13px;color:#5f5e5a;margin-bottom:14px;line-height:1.5">
+          Déposer le PDF <strong>TAC Accessoires – Prestation Collaborateurs</strong> du magasin
+          <strong id="tac-magasin-nom">—</strong>. Le CA réel du mois sera écrasé par les valeurs
+          du PDF ; les commandes manuelles en potentiel sont conservées.
+        </p>
+        <div class="tac-dropzone" id="tac-dropzone">
+          <input type="file" id="tac-file" accept="application/pdf" onchange="tacFileChoisi(event)" style="display:none">
+          <div id="tac-dropzone-vide">
+            <div style="font-size:34px;line-height:1">📄</div>
+            <div style="font-weight:500;margin-top:6px">Choisir un PDF</div>
+            <div style="font-size:12px;color:#888780;margin-top:4px">Déposer le fichier ici ou cliquer</div>
+          </div>
+          <div id="tac-dropzone-pret" style="display:none">
+            <div style="font-size:34px;line-height:1">✓</div>
+            <div style="font-weight:500;margin-top:6px" id="tac-filename">—</div>
+            <div style="font-size:12px;color:#888780;margin-top:4px" id="tac-filesize">—</div>
+          </div>
+        </div>
+        <div id="tac-result" style="display:none;margin-top:14px"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" onclick="fermerImportTac()">Annuler</button>
+        <button class="btn-primary" id="tac-btn-import" onclick="lancerImportTac()" disabled>Importer</button>
+      </div>
+    </div>
   </div>
 
   <!-- Écran 3 : saisies (CA jour / Commande / EGT) -->
@@ -2042,7 +2187,7 @@ const API_URL = 'https://script.google.com/macros/s/AKfycbzoHrDvODIhDHXDWz9tNerT
 
 // Version locale de l'app (à incrémenter à chaque déploiement).
 // Format: YYYYMMDD-HHMM pour faciliter la comparaison chronologique.
-const APP_VERSION = '20260930-1700';  // +projections T/S/An
+const APP_VERSION = '20261002-1000';  // +import TAC Podium
 // Intervalle de vérification des MAJ en arrière-plan (5 minutes)
 const VERIF_MAJ_INTERVAL_MS = 5 * 60 * 1000;
 
@@ -4284,6 +4429,145 @@ document.getElementById('code-input').addEventListener('keydown', function(e) {
     validerCodeAcces();
   }
 });
+
+// ════════════════════════════════════════════════════════════════════
+// Import TAC Podium (évol oct 2026)
+// ════════════════════════════════════════════════════════════════════
+let tacFileData = null;  // { name, size, base64 }
+
+function ouvrirImportTac() {
+  if (!state.magasin) {
+    toast('Choisis d\'abord un magasin');
+    return;
+  }
+  document.getElementById('tac-magasin-nom').textContent = state.magasin.nom;
+  document.getElementById('tac-result').style.display = 'none';
+  document.getElementById('tac-result').innerHTML = '';
+  document.getElementById('tac-dropzone-vide').style.display = 'block';
+  document.getElementById('tac-dropzone-pret').style.display = 'none';
+  document.getElementById('tac-btn-import').disabled = true;
+  document.getElementById('tac-file').value = '';
+  tacFileData = null;
+  document.getElementById('modal-tac').style.display = 'flex';
+}
+
+function fermerImportTac() {
+  document.getElementById('modal-tac').style.display = 'none';
+  tacFileData = null;
+}
+
+async function tacFileChoisi(ev) {
+  const f = ev.target.files && ev.target.files[0];
+  if (!f) return;
+  if (!/\.pdf$/i.test(f.name)) {
+    toast('Fichier PDF attendu');
+    return;
+  }
+  if (f.size > 15 * 1024 * 1024) {
+    toast('PDF trop lourd (max 15 Mo)');
+    return;
+  }
+  // Lire en base64
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const result = e.target.result;
+    // Extraire la partie base64 (après "data:application/pdf;base64,")
+    const base64 = result.split(',')[1];
+    tacFileData = { name: f.name, size: f.size, base64: base64 };
+    document.getElementById('tac-filename').textContent = f.name;
+    document.getElementById('tac-filesize').textContent =
+      (f.size < 1024 * 1024 ? (f.size / 1024).toFixed(0) + ' Ko' : (f.size / 1024 / 1024).toFixed(1) + ' Mo');
+    document.getElementById('tac-dropzone-vide').style.display = 'none';
+    document.getElementById('tac-dropzone-pret').style.display = 'block';
+    document.getElementById('tac-btn-import').disabled = false;
+  };
+  reader.readAsDataURL(f);
+}
+
+async function lancerImportTac() {
+  if (!tacFileData) return;
+  const btn = document.getElementById('tac-btn-import');
+  const originalText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Import en cours…';
+  document.getElementById('tac-result').style.display = 'none';
+
+  try {
+    const resp = await apiPost({
+      action: 'tac.import',
+      magasin_code: state.magasin.code,
+      pdf_base64: tacFileData.base64,
+      filename: tacFileData.name
+    });
+    if (!resp.ok) throw new Error(resp.error && resp.error.message || 'Erreur import');
+    afficherResultatTac_(resp.data);
+    // Invalider le cache dashboard local pour forcer un rafraîchissement
+    try { sessionStorage.removeItem(CACHE_KEY_DASHBOARD); } catch (e) {}
+  } catch (err) {
+    document.getElementById('tac-result').style.display = 'block';
+    document.getElementById('tac-result').innerHTML =
+      '<div class="tac-result-ko"><strong>Import échoué</strong><br>' + err.message + '</div>';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = originalText;
+  }
+}
+
+function afficherResultatTac_(data) {
+  const box = document.getElementById('tac-result');
+  box.style.display = 'block';
+  let html = '<div class="tac-result-ok">';
+  html += '<strong>Import réussi — ' + data.vendeurs_importes + ' vendeur(s)</strong><br>';
+  html += 'Période : ' + data.periode + ' · ';
+  html += 'CA ACC total : ' + formatEuro(data.total_ca_acc) + ' · ';
+  html += 'PRESTA total : ' + formatEuro(data.total_ca_presta);
+  if (data.nb_remplaces > 0) {
+    html += '<br>' + data.nb_remplaces + ' saisie(s) précédente(s) remplacée(s).';
+  }
+  html += '</div>';
+
+  if (data.detail && data.detail.length) {
+    html += '<table class="tac-result-table"><thead><tr>';
+    html += '<td>Vendeur</td><td>ACC</td><td>Presta</td></tr></thead><tbody>';
+    data.detail.forEach(d => {
+      html += '<tr><td>' + d.vendeur_code + '</td>';
+      html += '<td>' + formatEuro(d.ca_acc) + '</td>';
+      html += '<td>' + formatEuro(d.ca_presta) + '</td></tr>';
+    });
+    html += '</tbody></table>';
+  }
+
+  if (data.warnings && data.warnings.length) {
+    html += '<div style="margin-top:10px;font-size:12px;color:#a83a16">';
+    html += '<strong>Avertissements :</strong><br>';
+    data.warnings.forEach(w => { html += '• ' + w + '<br>'; });
+    html += '</div>';
+  }
+
+  box.innerHTML = html;
+
+  // Toast + fermeture auto après 4 s
+  toast('✓ TAC importé pour ' + state.magasin.nom);
+}
+
+// Drag & drop sur la dropzone
+(function() {
+  const dz = document.getElementById('tac-dropzone');
+  if (!dz) return;
+  dz.onclick = () => document.getElementById('tac-file').click();
+  dz.ondragover = (e) => { e.preventDefault(); dz.classList.add('dragover'); };
+  dz.ondragleave = () => dz.classList.remove('dragover');
+  dz.ondrop = (e) => {
+    e.preventDefault();
+    dz.classList.remove('dragover');
+    const f = e.dataTransfer.files && e.dataTransfer.files[0];
+    if (!f) return;
+    const dt = new DataTransfer();
+    dt.items.add(f);
+    document.getElementById('tac-file').files = dt.files;
+    tacFileChoisi({ target: document.getElementById('tac-file') });
+  };
+})();
 
 // Démarrer l'app
 init();
