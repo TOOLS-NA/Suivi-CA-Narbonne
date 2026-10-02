@@ -1104,6 +1104,16 @@
     color: white;
   }
   .cmd-btn-invoice:active { background: #168A65; }
+  .cmd-btn-month {
+    background: #f0f8f5;
+    color: #0F6E56;
+    border: 1px solid #1D9E75;
+  }
+  .cmd-btn-month:active { background: #e1f1ea; }
+  .cmd-card-mois {
+    color: #0F6E56;
+    font-weight: 500;
+  }
 
   /* ────────────────────────────────────────────────────────────
      Mini-progression EGT (en haut du formulaire EGT)
@@ -1906,6 +1916,32 @@
     </div>
   </div>
 
+  <!-- Modal : Changer le mois de facturation d'une commande -->
+  <div id="modal-changer-mois" class="modal-overlay" style="display:none">
+    <div class="modal-card" style="max-width:360px">
+      <div class="modal-header">
+        <h3>Mois de facturation</h3>
+        <button class="modal-close" onclick="fermerChangerMois()" aria-label="Fermer">×</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size:13px;color:#5f5e5a;margin-bottom:14px;line-height:1.5">
+          Choisis le nouveau mois de facturation pour cette commande.
+        </p>
+        <div class="field">
+          <label class="field-label">📅 Mois de facturation</label>
+          <select id="changer-mois-select" class="field-input-text" style="font-size:15px;padding:12px">
+            <!-- Options générées dynamiquement -->
+          </select>
+        </div>
+        <div id="changer-mois-result" style="display:none;margin-top:10px"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" onclick="fermerChangerMois()">Annuler</button>
+        <button class="btn-primary" id="btn-changer-mois-valider" onclick="lancerChangerMois()">Valider</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Écran 3 : saisies (CA jour / Commande / EGT) -->
   <div id="screen-saisie" class="screen">
     <div class="vendeur-header">
@@ -2194,7 +2230,7 @@ const API_URL = 'https://script.google.com/macros/s/AKfycbzoHrDvODIhDHXDWz9tNerT
 
 // Version locale de l'app (à incrémenter à chaque déploiement).
 // Format: YYYYMMDD-HHMM pour faciliter la comparaison chronologique.
-const APP_VERSION = '20261002-1200';  // +mois_facturation (commandes) + EGT dans cmd + filtre cmd par vendeur
+const APP_VERSION = '20261002-1630';  // +UI changer mois facturation sur Cmd en cours
 // Intervalle de vérification des MAJ en arrière-plan (5 minutes)
 const VERIF_MAJ_INTERVAL_MS = 5 * 60 * 1000;
 
@@ -3765,6 +3801,9 @@ function renderCommandesEnCours(commandes, vendeurs) {
           </div>${egtBloc}
         </div>
         <div class="cmd-card-actions">
+          <button class="cmd-btn cmd-btn-month" onclick="ouvrirChangerMois('${c.id}', '${c.mois_facturation || ''}')">
+            📅 Changer mois
+          </button>
           <button class="cmd-btn cmd-btn-invoice" onclick="actionRetirerCommande('${c.id}')">
             Retirer du portefeuille
           </button>
@@ -4604,6 +4643,81 @@ function afficherResultatTac_(data) {
 
   // Toast + fermeture auto après 4 s
   toast('✓ TAC importé pour ' + state.magasin.nom);
+}
+
+// ════════════════════════════════════════════════════════════════════
+// Changer le mois de facturation d'une commande (évol oct 2026)
+// ════════════════════════════════════════════════════════════════════
+let changerMoisIdSaisie = null;
+
+function ouvrirChangerMois(idSaisie, moisActuel) {
+  changerMoisIdSaisie = idSaisie;
+  // Peupler le select avec les 12 mois de l'exercice
+  const sel = document.getElementById('changer-mois-select');
+  const now = new Date();
+  const curY = now.getFullYear();
+  const curM = now.getMonth() + 1;
+  const anneeDebut = (curM >= 9) ? curY : curY - 1;
+  const libMois = ['janvier','février','mars','avril','mai','juin',
+                   'juillet','août','septembre','octobre','novembre','décembre'];
+  let html = '';
+  for (let i = 0; i < 12; i++) {
+    const moisReel = ((i + 7) % 12) + 1;
+    const anneeReel = (i < 4) ? anneeDebut : anneeDebut + 1;
+    const periode = anneeReel + '-' + String(moisReel).padStart(2, '0');
+    const libelle = libMois[moisReel - 1].charAt(0).toUpperCase() + libMois[moisReel - 1].slice(1) + ' ' + anneeReel;
+    const sel_attr = (periode === moisActuel) ? ' selected' : '';
+    html += '<option value="' + periode + '"' + sel_attr + '>' + libelle + '</option>';
+  }
+  sel.innerHTML = html;
+  document.getElementById('changer-mois-result').style.display = 'none';
+  document.getElementById('changer-mois-result').innerHTML = '';
+  document.getElementById('modal-changer-mois').style.display = 'flex';
+}
+
+function fermerChangerMois() {
+  document.getElementById('modal-changer-mois').style.display = 'none';
+  changerMoisIdSaisie = null;
+}
+
+async function lancerChangerMois() {
+  if (!changerMoisIdSaisie) return;
+  const nouveauMois = document.getElementById('changer-mois-select').value;
+  if (!/^\d{4}-\d{2}$/.test(nouveauMois)) {
+    showToast('Mois invalide', 'error');
+    return;
+  }
+
+  const btn = document.getElementById('btn-changer-mois-valider');
+  const originalText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Enregistrement…';
+
+  try {
+    const r = await apiPost({
+      action: 'saisie.update',
+      magasin_code: state.magasin.code,
+      saisie_id: changerMoisIdSaisie,
+      operation: 'MODIFIER',
+      modifications: { mois_facturation: nouveauMois }
+    });
+    if (!r.ok) throw new Error(r.error && r.error.message || 'Erreur backend');
+
+    // Invalider le cache dashboard
+    try { sessionStorage.removeItem(CACHE_KEY_DASHBOARD); } catch (e) {}
+
+    showToast('✓ Mois de facturation mis à jour', 'success');
+    fermerChangerMois();
+    // Recharger la liste des commandes pour voir le nouveau mois
+    chargerCommandesEnCours();
+  } catch (err) {
+    document.getElementById('changer-mois-result').style.display = 'block';
+    document.getElementById('changer-mois-result').innerHTML =
+      '<div class="tac-result-ko">Erreur : ' + err.message + '</div>';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = originalText;
+  }
 }
 
 // Drag & drop sur la dropzone
