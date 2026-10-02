@@ -1110,6 +1110,15 @@
     border: 1px solid #1D9E75;
   }
   .cmd-btn-month:active { background: #e1f1ea; }
+  .cmd-btn-vendor {
+    background: #fdf6ec;
+    color: #a35b1a;
+    border: 1px solid #d89046;
+  }
+  .cmd-btn-vendor:active { background: #f8ebd3; }
+  .cmd-card-actions-row1 {
+    margin-bottom: 6px;
+  }
   .cmd-card-mois {
     color: #0F6E56;
     font-weight: 500;
@@ -1916,6 +1925,32 @@
     </div>
   </div>
 
+  <!-- Modal : Changer le vendeur d'une commande -->
+  <div id="modal-changer-vendeur" class="modal-overlay" style="display:none">
+    <div class="modal-card" style="max-width:360px">
+      <div class="modal-header">
+        <h3>Changer de vendeur</h3>
+        <button class="modal-close" onclick="fermerChangerVendeur()" aria-label="Fermer">×</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size:13px;color:#5f5e5a;margin-bottom:14px;line-height:1.5">
+          Ré-affecter cette commande à un autre vendeur du magasin.
+        </p>
+        <div class="field">
+          <label class="field-label">👤 Vendeur</label>
+          <select id="changer-vendeur-select" class="field-input-text" style="font-size:15px;padding:12px">
+            <!-- Options générées dynamiquement -->
+          </select>
+        </div>
+        <div id="changer-vendeur-result" style="display:none;margin-top:10px"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" onclick="fermerChangerVendeur()">Annuler</button>
+        <button class="btn-primary" id="btn-changer-vendeur-valider" onclick="lancerChangerVendeur()">Valider</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Modal : Changer le mois de facturation d'une commande -->
   <div id="modal-changer-mois" class="modal-overlay" style="display:none">
     <div class="modal-card" style="max-width:360px">
@@ -2230,7 +2265,7 @@ const API_URL = 'https://script.google.com/macros/s/AKfycbzoHrDvODIhDHXDWz9tNerT
 
 // Version locale de l'app (à incrémenter à chaque déploiement).
 // Format: YYYYMMDD-HHMM pour faciliter la comparaison chronologique.
-const APP_VERSION = '20261002-1630';  // +UI changer mois facturation sur Cmd en cours
+const APP_VERSION = '20261002-1645';  // +UI changer vendeur sur Cmd en cours
 // Intervalle de vérification des MAJ en arrière-plan (5 minutes)
 const VERIF_MAJ_INTERVAL_MS = 5 * 60 * 1000;
 
@@ -3800,10 +3835,15 @@ function renderCommandesEnCours(commandes, vendeurs) {
             <div class="value">${formatEuro(c.montant_atelier)}</div>
           </div>${egtBloc}
         </div>
-        <div class="cmd-card-actions">
+        <div class="cmd-card-actions cmd-card-actions-row1">
           <button class="cmd-btn cmd-btn-month" onclick="ouvrirChangerMois('${c.id}', '${c.mois_facturation || ''}')">
             📅 Changer mois
           </button>
+          <button class="cmd-btn cmd-btn-vendor" onclick="ouvrirChangerVendeur('${c.id}', '${c.vendeur_code || ''}')">
+            👤 Changer vendeur
+          </button>
+        </div>
+        <div class="cmd-card-actions">
           <button class="cmd-btn cmd-btn-invoice" onclick="actionRetirerCommande('${c.id}')">
             Retirer du portefeuille
           </button>
@@ -4643,6 +4683,73 @@ function afficherResultatTac_(data) {
 
   // Toast + fermeture auto après 4 s
   toast('✓ TAC importé pour ' + state.magasin.nom);
+}
+
+// ════════════════════════════════════════════════════════════════════
+// Changer le vendeur d'une commande (évol oct 2026)
+// ════════════════════════════════════════════════════════════════════
+let changerVendeurIdSaisie = null;
+
+function ouvrirChangerVendeur(idSaisie, vendeurActuel) {
+  changerVendeurIdSaisie = idSaisie;
+  const sel = document.getElementById('changer-vendeur-select');
+  const vendeurs = (state.vendeurs || []).filter(v => v.actif !== false);
+  let html = '';
+  vendeurs.forEach(v => {
+    let suffix = '';
+    if (v.role === 'DM') suffix = ' (DM)';
+    else if (v.role === 'WEB') suffix = ' (WEB)';
+    const sel_attr = (v.code === vendeurActuel) ? ' selected' : '';
+    html += '<option value="' + v.code + '"' + sel_attr + '>' + v.nom_affiche + suffix + '</option>';
+  });
+  sel.innerHTML = html;
+  document.getElementById('changer-vendeur-result').style.display = 'none';
+  document.getElementById('changer-vendeur-result').innerHTML = '';
+  document.getElementById('modal-changer-vendeur').style.display = 'flex';
+}
+
+function fermerChangerVendeur() {
+  document.getElementById('modal-changer-vendeur').style.display = 'none';
+  changerVendeurIdSaisie = null;
+}
+
+async function lancerChangerVendeur() {
+  if (!changerVendeurIdSaisie) return;
+  const nouveauVendeur = document.getElementById('changer-vendeur-select').value;
+  if (!nouveauVendeur) {
+    showToast('Choisis un vendeur', 'error');
+    return;
+  }
+
+  const btn = document.getElementById('btn-changer-vendeur-valider');
+  const originalText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Enregistrement…';
+
+  try {
+    const r = await apiPost({
+      action: 'saisie.update',
+      magasin_code: state.magasin.code,
+      saisie_id: changerVendeurIdSaisie,
+      operation: 'MODIFIER',
+      modifications: { vendeur_code: nouveauVendeur }
+    });
+    if (!r.ok) throw new Error(r.error && r.error.message || 'Erreur backend');
+
+    try { sessionStorage.removeItem(CACHE_KEY_DASHBOARD); } catch (e) {}
+
+    const nomNouveau = (state.vendeurs.find(v => v.code === nouveauVendeur) || {}).nom_affiche || nouveauVendeur;
+    showToast('✓ Commande ré-affectée à ' + nomNouveau, 'success');
+    fermerChangerVendeur();
+    chargerCommandesEnCours();
+  } catch (err) {
+    document.getElementById('changer-vendeur-result').style.display = 'block';
+    document.getElementById('changer-vendeur-result').innerHTML =
+      '<div class="tac-result-ko">Erreur : ' + err.message + '</div>';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = originalText;
+  }
 }
 
 // ════════════════════════════════════════════════════════════════════
