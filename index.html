@@ -2265,7 +2265,7 @@ const API_URL = 'https://script.google.com/macros/s/AKfycbzoHrDvODIhDHXDWz9tNerT
 
 // Version locale de l'app (à incrémenter à chaque déploiement).
 // Format: YYYYMMDD-HHMM pour faciliter la comparaison chronologique.
-const APP_VERSION = '20261002-1715';  // Fix cache frontend : vendeur_code dans la clé
+const APP_VERSION = '20261005-0940';  // Fix toast → showToast dans import TAC
 // Intervalle de vérification des MAJ en arrière-plan (5 minutes)
 const VERIF_MAJ_INTERVAL_MS = 5 * 60 * 1000;
 
@@ -4576,7 +4576,7 @@ let tacFileData = null;  // { name, size, base64 }
 
 function ouvrirImportTac() {
   if (!state.magasin) {
-    toast('Choisis d\'abord un magasin');
+    showToast('Choisis d\'abord un magasin', 'error');
     return;
   }
   document.getElementById('tac-magasin-nom').textContent = state.magasin.nom;
@@ -4599,11 +4599,11 @@ async function tacFileChoisi(ev) {
   const f = ev.target.files && ev.target.files[0];
   if (!f) return;
   if (!/\.pdf$/i.test(f.name)) {
-    toast('Fichier PDF attendu');
+    showToast('Fichier PDF attendu', 'error');
     return;
   }
   if (f.size > 15 * 1024 * 1024) {
-    toast('PDF trop lourd (max 15 Mo)');
+    showToast('PDF trop lourd (max 15 Mo)', 'error');
     return;
   }
   // Lire en base64
@@ -4686,7 +4686,7 @@ function afficherResultatTac_(data) {
   box.innerHTML = html;
 
   // Toast + fermeture auto après 4 s
-  toast('✓ TAC importé pour ' + state.magasin.nom);
+  showToast('✓ TAC importé pour ' + state.magasin.nom, 'success');
 }
 
 // ════════════════════════════════════════════════════════════════════
