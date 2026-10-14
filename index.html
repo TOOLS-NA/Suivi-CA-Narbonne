@@ -5295,7 +5295,7 @@ function setAdminToken_(t) {
   try { localStorage.setItem(ADMIN_TOKEN_KEY, t); } catch (e) {}
 }
 function demanderAdminToken_() {
-  const t = prompt('Token admin (fourni par Pierre, visible dans les logs Apps Script après setupVueTribu) :');
+  const t = prompt('Mot de passe admin pour accéder à la Vue Tribu :');
   if (t && t.trim()) { setAdminToken_(t.trim()); return t.trim(); }
   return '';
 }
@@ -5334,9 +5334,9 @@ async function chargerTribuDashboard(forceRefresh) {
       const msg = r.error && r.error.message || 'Erreur';
       if (r.error && r.error.code === 'FORBIDDEN') {
         document.getElementById('tribu-loading').innerHTML =
-          '🔒 Accès refusé — token admin invalide.<br>' +
-          '<small>Vérifie le token dans Apps Script (fonction <code>afficherAdminToken</code>).</small><br>' +
-          '<button onclick="reinitAdminToken();ouvrirVueTribu()" style="margin-top:12px;background:#1D9E75;color:white;border:0;padding:8px 16px;border-radius:6px;cursor:pointer;font-family:inherit">Saisir à nouveau le token</button>';
+          '🔒 Mot de passe admin incorrect.<br>' +
+          '<small>Vérifie-le dans Apps Script (lance la fonction <code>afficherAdminToken</code>).</small><br>' +
+          '<button onclick="reinitAdminToken();ouvrirVueTribu()" style="margin-top:12px;background:#1D9E75;color:white;border:0;padding:8px 16px;border-radius:6px;cursor:pointer;font-family:inherit">Saisir à nouveau le mot de passe</button>';
       } else {
         document.getElementById('tribu-loading').textContent = 'Erreur : ' + msg;
       }
