@@ -1814,6 +1814,8 @@
     padding: 6px 10px;
   }
 </style>
+<!-- v20261014 : html2pdf.js pour la génération PDF Brief Perf côté navigateur -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 </head>
 <body>
 
@@ -1870,6 +1872,13 @@
     <h2 class="screen-heading">Quel magasin ?</h2>
     <div class="btn-list" id="liste-magasins">
       <!-- Les boutons sont générés en JS depuis MAGASINS -->
+    </div>
+    <!-- v20261014 : accès Vue Tribu pour les admins -->
+    <div style="margin-top:24px;padding-top:20px;border-top:1px solid #e4e8e5;text-align:center">
+      <button onclick="ouvrirVueTribu()" style="background:#E1F5EE;color:#0F6E56;border:1px solid #1D9E75;padding:10px 20px;border-radius:8px;font-size:13.5px;font-weight:600;cursor:pointer;font-family:inherit">
+        📊 Ouvrir ma Vue Tribu
+      </button>
+      <div style="font-size:11px;color:#8a9690;margin-top:6px">Admin uniquement — vision globale du réseau</div>
     </div>
   </div>
 
@@ -2011,6 +2020,77 @@
       <div class="modal-footer">
         <button class="btn-secondary" onclick="fermerModifierCommande()">Annuler</button>
         <button class="btn-primary" id="btn-modifier-commande-valider" onclick="lancerModifierCommande()">Enregistrer</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modale : Brief Perf (v20261014) -->
+  <div id="modal-brief-perf" class="modal-overlay" style="display:none">
+    <div class="modal-card" style="max-width:460px">
+      <div class="modal-header">
+        <h3>📊 Brief Perf — PDF</h3>
+        <button class="modal-close" onclick="fermerBriefPerf()" aria-label="Fermer">×</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size:12.5px;color:#5f5e5a;margin-bottom:14px;line-height:1.5">
+          <strong id="brief-mag-label">—</strong> · <span id="brief-periode-label">mois en cours</span>
+        </p>
+        <div class="field">
+          <label class="field-label">Commentaire DM (optionnel, apparaîtra en bas du PDF)</label>
+          <textarea id="brief-commentaire" class="field-input-text" rows="4" placeholder="Ex. Mois bien engagé, SAFER à relancer sur son potentiel Presta…" style="width:100%;resize:vertical;font-family:inherit;padding:12px;font-size:13.5px;box-sizing:border-box"></textarea>
+        </div>
+        <div id="brief-perf-result" style="display:none;margin-top:10px"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" onclick="fermerBriefPerf()">Annuler</button>
+        <button class="btn-primary" id="btn-brief-perf-valider" onclick="lancerBriefPerf()">Télécharger PDF</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Zone cachée pour construire le PDF Brief Perf (hors écran) -->
+  <div id="brief-pdf-zone" style="position:fixed;left:-10000px;top:0;width:794px"></div>
+
+  <!-- Écran Vue Tribu (v20261014, admin only) -->
+  <div id="screen-tribu" class="screen" style="display:none;background:#f3f5f1;min-height:100vh;padding:16px">
+    <div style="max-width:1180px;margin:0 auto;display:flex;flex-direction:column;gap:16px">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px">
+        <div>
+          <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.14em;color:#0F6E56;font-weight:700">Vue Tribu — Admin</div>
+          <h1 style="margin:3px 0 0;font-size:26px;font-weight:600;color:#0f1611">Mon réseau</h1>
+          <div style="font-size:12.5px;color:#5f5e5a;margin-top:3px" id="tribu-periode">—</div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <button onclick="chargerTribuDashboard(true)" style="background:white;border:1px solid #e4e8e5;color:#0f1611;padding:7px 14px;border-radius:999px;font-size:12.5px;font-weight:500;cursor:pointer">↻ Rafraîchir</button>
+          <button onclick="ouvrirTribuPrefs()" id="btn-tribu-prefs" style="background:#E1F5EE;border:1px solid #1D9E75;color:#0F6E56;padding:7px 14px;border-radius:999px;font-size:12.5px;font-weight:500;cursor:pointer">⚙ Magasins affichés (0)</button>
+          <button onclick="retourAccueil()" style="background:none;border:0;color:#5f5e5a;padding:7px 10px;font-size:12.5px;cursor:pointer">← Retour</button>
+        </div>
+      </div>
+
+      <!-- Hero totaux (sera rempli en JS) -->
+      <div id="tribu-hero" style="background:linear-gradient(135deg,#0F6E56,#1D9E75);color:white;border-radius:10px;padding:20px 24px;display:none"></div>
+
+      <!-- Loader -->
+      <div id="tribu-loading" style="padding:48px 20px;text-align:center;color:#8a9690">Chargement…</div>
+
+      <!-- Grille des magasins -->
+      <div id="tribu-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px"></div>
+    </div>
+  </div>
+
+  <!-- Modale : préférences Vue Tribu (choix des magasins) -->
+  <div id="modal-tribu-prefs" class="modal-overlay" style="display:none">
+    <div class="modal-card" style="max-width:460px">
+      <div class="modal-header">
+        <h3>Magasins affichés dans ma Vue Tribu</h3>
+        <button class="modal-close" onclick="fermerTribuPrefs()" aria-label="Fermer">×</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size:12px;color:#5f5e5a;margin-bottom:14px">Coche les magasins que tu veux voir. Enregistré automatiquement côté serveur, suit sur tous tes appareils.</p>
+        <div id="tribu-prefs-list" style="display:flex;flex-direction:column;gap:2px;max-height:50vh;overflow-y:auto"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" onclick="fermerTribuPrefs()">Fermer</button>
       </div>
     </div>
   </div>
@@ -2216,6 +2296,13 @@
         </div>
       </div>
 
+      <!-- v20261014 : ventilation CFID par vendeur (bug 3) -->
+      <div id="cartes-par-vendeur" style="display:none;margin:14px 0;padding:12px 14px;background:#f6f7f3;border:1px solid #e4e8e5;border-radius:6px">
+        <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.08em;color:#5f5e5a;font-weight:700;margin-bottom:10px">Détail par vendeur — mois en cours</div>
+        <div id="cartes-par-vendeur-list" style="display:flex;flex-direction:column;gap:6px;font-size:13px"></div>
+        <div id="cartes-par-vendeur-total" style="margin-top:10px;padding-top:8px;border-top:1px solid #d7dcd8;display:flex;justify-content:space-between;font-size:12.5px;font-weight:700;color:#0F6E56"></div>
+      </div>
+
       <button class="btn-primary" id="btn-valider-carte" onclick="validerCarte()">
         Enregistrer
       </button>
@@ -2246,7 +2333,10 @@
     <div class="form-section" id="form-recap">
       <div class="recap-header">
         <span class="recap-title" id="recap-magasin-title">Récap —</span>
-        <button class="recap-refresh" onclick="chargerRecap()">⟳ Actualiser</button>
+        <div style="display:flex;gap:6px">
+          <button class="recap-refresh" onclick="ouvrirBriefPerf()" style="background:#1D9E75;color:white;border-color:#1D9E75" title="Générer le brief perf PDF">📊 Brief Perf</button>
+          <button class="recap-refresh" onclick="chargerRecap()">⟳ Actualiser</button>
+        </div>
       </div>
 
       <div id="recap-content">
@@ -3473,6 +3563,38 @@ async function chargerProgressCartes() {
 
     // Afficher seulement si on a un objectif défini
     document.getElementById('recap-objectif-cartes').style.display = obj > 0 ? 'block' : 'none';
+
+    // v20261014 : ventilation par vendeur (bug 3 UI)
+    const paneDetail = document.getElementById('cartes-par-vendeur');
+    const listEl = document.getElementById('cartes-par-vendeur-list');
+    const totalEl = document.getElementById('cartes-par-vendeur-total');
+    const parVendeur = Array.isArray(m.cartes_par_vendeur) ? m.cartes_par_vendeur : [];
+    const vendeurs = (r.data.vendeurs || []).reduce(function(acc, v) { acc[v.code] = v; return acc; }, {});
+    if (parVendeur.length === 0) {
+      paneDetail.style.display = 'none';
+    } else {
+      paneDetail.style.display = 'block';
+      let sumMois = 0, sumSaison = 0;
+      listEl.innerHTML = parVendeur.map(function(cv) {
+        sumMois += cv.nombre_mois || 0;
+        sumSaison += cv.nombre_saison || 0;
+        const v = vendeurs[cv.vendeur_code];
+        const couleur = v ? v.couleur : '#888780';
+        const nom = v ? v.nom_affiche : cv.vendeur_code;
+        return '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px">' +
+                 '<span style="display:inline-flex;align-items:center;gap:8px;color:#0f1611">' +
+                   '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:' + couleur + '"></span>' +
+                   '<strong>' + escapeHtml_(cv.vendeur_code) + '</strong>' +
+                   '<span style="color:#8a9690;font-size:12px">' + escapeHtml_(nom) + '</span>' +
+                 '</span>' +
+                 '<span style="font-family:monospace;font-weight:600"><span style="color:#0F6E56">' + (cv.nombre_mois || 0) + '</span>' +
+                   '<span style="color:#8a9690;font-weight:400"> · saison ' + (cv.nombre_saison || 0) + '</span>' +
+                 '</span>' +
+               '</div>';
+      }).join('');
+      totalEl.innerHTML = '<span>Total magasin</span>' +
+                          '<span style="font-family:monospace">' + sumMois + ' ce mois · ' + sumSaison + ' saison</span>';
+    }
   } catch (err) {
     // silencieux
   }
@@ -4957,6 +5079,365 @@ async function lancerModifierCommande() {
     btn.disabled = false;
     btn.textContent = originalText;
   }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// BRIEF PERF (v20261014) — génération PDF côté navigateur via html2pdf.js
+// ═══════════════════════════════════════════════════════════════════════════
+
+function ouvrirBriefPerf() {
+  if (!state.magasin) { showToast('Pas de magasin sélectionné', 'error'); return; }
+  document.getElementById('brief-mag-label').textContent = state.magasin.nom_affiche || state.magasin.code;
+  const now = new Date();
+  const periode = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+  document.getElementById('brief-periode-label').textContent = formatMois_(periode);
+  document.getElementById('brief-commentaire').value = '';
+  document.getElementById('brief-perf-result').style.display = 'none';
+  document.getElementById('brief-perf-result').innerHTML = '';
+  document.getElementById('modal-brief-perf').style.display = 'flex';
+}
+
+function fermerBriefPerf() {
+  document.getElementById('modal-brief-perf').style.display = 'none';
+}
+
+async function lancerBriefPerf() {
+  if (!state.magasin) return;
+  const btn = document.getElementById('btn-brief-perf-valider');
+  const original = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Chargement données…';
+
+  try {
+    const r = await apiGet({ action: 'brief.perf.get', magasin_code: state.magasin.code });
+    if (!r.ok) throw new Error(r.error && r.error.message || 'Erreur backend');
+
+    const commentaire = (document.getElementById('brief-commentaire').value || '').trim();
+    const html = genererHtmlBriefPerf_(r.data, commentaire);
+
+    const zone = document.getElementById('brief-pdf-zone');
+    zone.innerHTML = html;
+
+    btn.textContent = 'Génération PDF…';
+
+    if (typeof html2pdf === 'undefined') throw new Error('Bibliothèque html2pdf non chargée');
+
+    const now = new Date();
+    const dateStr = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0') + '-' + String(now.getDate()).padStart(2,'0');
+    const filename = 'BriefPerf_' + state.magasin.code + '_' + dateStr + '.pdf';
+
+    await html2pdf()
+      .set({
+        margin: 0,
+        filename: filename,
+        image: { type: 'jpeg', quality: 0.95 },
+        html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff' },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+      })
+      .from(zone.firstElementChild)
+      .save();
+
+    zone.innerHTML = '';
+    showToast('✓ PDF téléchargé', 'success');
+    fermerBriefPerf();
+  } catch (err) {
+    document.getElementById('brief-perf-result').style.display = 'block';
+    document.getElementById('brief-perf-result').innerHTML =
+      '<div class="tac-result-ko">Erreur : ' + (err.message || err) + '</div>';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = original;
+  }
+}
+
+function genererHtmlBriefPerf_(data, commentaire) {
+  const m = data.magasin || {};
+  const kpi = data.kpi || {};
+  const att = data.atterrissage || {};
+  const vendeurs = data.vendeurs || [];
+  const now = new Date();
+  const dateFr = now.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  const heureFr = now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+
+  const fmt = n => new Intl.NumberFormat('fr-FR').format(Math.round(Number(n) || 0)) + ' €';
+  const evolHtml = (val, label) => {
+    if (val == null) return '<div style="margin-top:9px;font-size:10.5px;color:#8a9690">— N-1 indisponible</div>';
+    const sign = val >= 0 ? '+' : '';
+    const color = val >= 0 ? '#1D9E75' : '#c0392b';
+    const arrow = val >= 0 ? '↑' : '↓';
+    return '<div style="margin-top:9px;font-size:11.5px;font-weight:600;color:' + color + '">' + arrow + ' ' + sign + val.toFixed(1).replace('.', ',') + ' %<span style="color:#8a9690;font-weight:500;margin-left:4px">vs ' + label + '</span></div>';
+  };
+
+  const tauxClass = taux => {
+    if (taux >= 95) return 'color:#0F6E56;font-weight:700';
+    if (taux >= 85) return 'color:#d4701a;font-weight:700';
+    return 'color:#c0392b;font-weight:700';
+  };
+
+  const nMoinsUnLib = (function() {
+    const dp = new Date(data.periode + '-01');
+    const monthName = dp.toLocaleDateString('fr-FR', { month: 'short' });
+    return monthName + '. ' + (dp.getFullYear() - 1);
+  })();
+
+  const periodeFr = (function() {
+    const dp = new Date(data.periode + '-01');
+    return dp.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+  })();
+
+  const vendeursHtml = vendeurs.map(v => {
+    const taux = Number(v.taux) || 0;
+    const atterr = Number(v.atterrissage) || (Number(v.ca_reel) + Number(v.potentiel));
+    return `
+      <tr>
+        <td style="padding:9px 10px;border-bottom:1px solid #eceee9;">
+          <span style="display:inline-flex;align-items:center;gap:6px">
+            <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${v.couleur||'#888'}"></span>
+            <strong>${v.code}</strong>
+            <span style="font-size:9.5px;color:#8a9690;text-transform:uppercase;letter-spacing:0.08em">${(v.role||'').toLowerCase()}</span>
+          </span>
+        </td>
+        <td style="padding:9px 10px;border-bottom:1px solid #eceee9;text-align:right;font-family:monospace">${fmt(v.prevs)}</td>
+        <td style="padding:9px 10px;border-bottom:1px solid #eceee9;text-align:right;font-family:monospace">${fmt(v.ca_reel)}</td>
+        <td style="padding:9px 10px;border-bottom:1px solid #eceee9;text-align:right;font-family:monospace">${fmt(v.potentiel)}</td>
+        <td style="padding:9px 10px;border-bottom:1px solid #eceee9;text-align:right;font-family:monospace">${fmt(atterr)}</td>
+        <td style="padding:9px 10px;border-bottom:1px solid #eceee9;text-align:right;font-family:monospace;${tauxClass(taux)}">${taux.toFixed(0)} %</td>
+      </tr>`;
+  }).join('');
+
+  const totTaux = Number(att.taux) || 0;
+
+  const commentBloc = commentaire ? `
+    <div style="margin-top:14px;padding:14px 16px;background:#E1F5EE;border-left:3px solid #1D9E75;border-radius:0 2px 2px 0">
+      <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:#0F6E56;margin-bottom:6px">Commentaire DM</div>
+      <div style="font-size:12.5px;color:#0f1611;line-height:1.55;font-style:italic">${escapeHtml_(commentaire)}</div>
+    </div>` : '';
+
+  return `
+    <div style="width:794px;min-height:1123px;padding:36px 40px;background:#ffffff;color:#0f1611;font-family:'Figtree',system-ui,sans-serif;box-sizing:border-box;display:flex;flex-direction:column;gap:20px">
+      <div style="border-bottom:2px solid #1D9E75;padding-bottom:14px;display:flex;justify-content:space-between;align-items:flex-end;gap:24px">
+        <div>
+          <div style="font-size:10.5px;text-transform:uppercase;letter-spacing:0.16em;color:#0F6E56;font-weight:700;margin-bottom:6px">Brief Performance</div>
+          <h1 style="font-size:28px;font-weight:600;color:#0f1611;margin:0;line-height:1.05;letter-spacing:-0.015em">${escapeHtml_(m.nom_affiche || m.code || '')}</h1>
+          <div style="font-size:13px;color:#5a6560;margin-top:5px">${periodeFr} — édition du ${dateFr}</div>
+        </div>
+        <div style="text-align:right;font-size:10.5px;color:#8a9690;line-height:1.6">
+          Édité le<br><strong style="color:#0f1611">${dateFr} à ${heureFr}</strong>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">
+        <div style="padding:16px 18px;border:1px solid #e4e8e5;background:#fcfdfc">
+          <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.1em;color:#5a6560;font-weight:600;margin-bottom:8px">CA Accessoires</div>
+          <div style="font-size:26px;font-weight:600;color:#0f1611;line-height:1;font-family:monospace">${fmt(kpi.acc)}</div>
+          ${evolHtml(kpi.evol && kpi.evol.acc, nMoinsUnLib)}
+        </div>
+        <div style="padding:16px 18px;border:1px solid #e4e8e5;background:#fcfdfc">
+          <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.1em;color:#5a6560;font-weight:600;margin-bottom:8px">CA Prestation</div>
+          <div style="font-size:26px;font-weight:600;color:#0f1611;line-height:1;font-family:monospace">${fmt(kpi.presta)}</div>
+          ${evolHtml(kpi.evol && kpi.evol.presta, nMoinsUnLib)}
+        </div>
+        <div style="padding:16px 18px;border:1px solid #e4e8e5;background:#fcfdfc">
+          <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.1em;color:#5a6560;font-weight:600;margin-bottom:8px">CA EGT</div>
+          <div style="font-size:26px;font-weight:600;color:#0f1611;line-height:1;font-family:monospace">${fmt(kpi.egt)}</div>
+          ${evolHtml(kpi.evol && kpi.evol.egt, nMoinsUnLib)}
+        </div>
+      </div>
+
+      <div>
+        <div style="font-size:10.5px;text-transform:uppercase;letter-spacing:0.1em;color:#5a6560;font-weight:700;margin-bottom:10px">Atterrissage magasin — Accessoires</div>
+        <div style="display:grid;grid-template-columns:repeat(5,1fr);border:1px solid #e4e8e5">
+          <div style="padding:12px 14px;border-right:1px solid #e4e8e5"><div style="font-size:9.5px;text-transform:uppercase;letter-spacing:0.08em;color:#8a9690;margin-bottom:4px;font-weight:600">Prévs</div><div style="font-family:monospace;font-size:14px;font-weight:500">${fmt(att.prevs)}</div></div>
+          <div style="padding:12px 14px;border-right:1px solid #e4e8e5"><div style="font-size:9.5px;text-transform:uppercase;letter-spacing:0.08em;color:#8a9690;margin-bottom:4px;font-weight:600">CA réel</div><div style="font-family:monospace;font-size:14px;font-weight:500">${fmt(att.ca_reel)}</div></div>
+          <div style="padding:12px 14px;border-right:1px solid #e4e8e5"><div style="font-size:9.5px;text-transform:uppercase;letter-spacing:0.08em;color:#8a9690;margin-bottom:4px;font-weight:600">Potentiel</div><div style="font-family:monospace;font-size:14px;font-weight:500">${fmt(att.potentiel)}</div></div>
+          <div style="padding:12px 14px;border-right:1px solid #e4e8e5"><div style="font-size:9.5px;text-transform:uppercase;letter-spacing:0.08em;color:#8a9690;margin-bottom:4px;font-weight:600">Atterr.</div><div style="font-family:monospace;font-size:14px;font-weight:500">${fmt(att.atterrissage)}</div></div>
+          <div style="padding:12px 14px;background:#E1F5EE"><div style="font-size:9.5px;text-transform:uppercase;letter-spacing:0.08em;color:#8a9690;margin-bottom:4px;font-weight:600">Taux</div><div style="font-family:monospace;font-size:14px;${tauxClass(totTaux)}">${totTaux.toFixed(1).replace('.',',')} %</div></div>
+        </div>
+      </div>
+
+      <div>
+        <div style="font-size:10.5px;text-transform:uppercase;letter-spacing:0.1em;color:#5a6560;font-weight:700;margin-bottom:10px">Détail par vendeur</div>
+        <table style="width:100%;border-collapse:collapse;font-size:12px">
+          <thead>
+            <tr>
+              <th style="text-align:left;padding:8px 10px;border-bottom:1.5px solid #0f1611;font-size:10px;text-transform:uppercase;letter-spacing:0.08em;color:#5a6560;font-weight:700">Vendeur</th>
+              <th style="text-align:right;padding:8px 10px;border-bottom:1.5px solid #0f1611;font-size:10px;text-transform:uppercase;letter-spacing:0.08em;color:#5a6560;font-weight:700">Prévs</th>
+              <th style="text-align:right;padding:8px 10px;border-bottom:1.5px solid #0f1611;font-size:10px;text-transform:uppercase;letter-spacing:0.08em;color:#5a6560;font-weight:700">CA réel</th>
+              <th style="text-align:right;padding:8px 10px;border-bottom:1.5px solid #0f1611;font-size:10px;text-transform:uppercase;letter-spacing:0.08em;color:#5a6560;font-weight:700">Pot.</th>
+              <th style="text-align:right;padding:8px 10px;border-bottom:1.5px solid #0f1611;font-size:10px;text-transform:uppercase;letter-spacing:0.08em;color:#5a6560;font-weight:700">Atterr.</th>
+              <th style="text-align:right;padding:8px 10px;border-bottom:1.5px solid #0f1611;font-size:10px;text-transform:uppercase;letter-spacing:0.08em;color:#5a6560;font-weight:700">Taux</th>
+            </tr>
+          </thead>
+          <tbody>${vendeursHtml}</tbody>
+        </table>
+      </div>
+
+      ${commentBloc}
+
+      <div style="margin-top:auto;padding-top:10px;border-top:1px solid #e4e8e5;display:flex;justify-content:space-between;font-size:9.5px;color:#8a9690;letter-spacing:0.03em">
+        <span>Suivi CA Narbonne — Brief Performance</span>
+        <span>${escapeHtml_(data.generated_by || '')}</span>
+      </div>
+    </div>`;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// VUE TRIBU (v20261014) — vision globale admin
+// ═══════════════════════════════════════════════════════════════════════════
+let tribuState = { prefsAll: [], prefsSel: [] };
+
+function ouvrirVueTribu() {
+  showScreen('screen-tribu');
+  chargerTribuDashboard(false);
+}
+
+function retourAccueil() {
+  showScreen('screen-magasin');
+}
+
+async function chargerTribuDashboard(forceRefresh) {
+  document.getElementById('tribu-loading').style.display = 'block';
+  document.getElementById('tribu-loading').textContent = 'Chargement…';
+  document.getElementById('tribu-hero').style.display = 'none';
+  document.getElementById('tribu-grid').innerHTML = '';
+
+  try {
+    const params = { action: 'tribu.dashboard' };
+    if (forceRefresh) params.force_refresh = '1';
+    const r = await apiGet(params);
+    if (!r.ok) {
+      const msg = r.error && r.error.message || 'Erreur';
+      if (r.error && r.error.code === 'FORBIDDEN') {
+        document.getElementById('tribu-loading').innerHTML = '🔒 Accès admin requis.<br><small>Ton email n\'est pas dans la whitelist. Contacte Pierre pour y être ajouté.</small>';
+      } else {
+        document.getElementById('tribu-loading').textContent = 'Erreur : ' + msg;
+      }
+      return;
+    }
+    renderTribuDashboard(r.data);
+  } catch (err) {
+    document.getElementById('tribu-loading').textContent = 'Erreur réseau : ' + (err.message || err);
+  }
+}
+
+function renderTribuDashboard(data) {
+  const totals = data.totals;
+  const magasins = data.magasins || [];
+  const meta = data.meta || {};
+  document.getElementById('tribu-periode').textContent =
+    'Mois en cours · ' + (meta.periode ? formatMois_(meta.periode) : '') +
+    ' · ' + magasins.length + ' magasin' + (magasins.length > 1 ? 's' : '') + ' suivi' + (magasins.length > 1 ? 's' : '');
+
+  document.getElementById('tribu-loading').style.display = magasins.length === 0 ? 'block' : 'none';
+  if (magasins.length === 0) {
+    document.getElementById('tribu-loading').innerHTML =
+      'Aucun magasin sélectionné.<br><br>Clique sur <strong>⚙ Magasins affichés</strong> pour choisir ceux à voir.';
+    document.getElementById('tribu-hero').style.display = 'none';
+    document.getElementById('tribu-grid').innerHTML = '';
+    document.getElementById('btn-tribu-prefs').textContent = '⚙ Magasins affichés (0)';
+    return;
+  }
+
+  const fmt = n => new Intl.NumberFormat('fr-FR').format(Math.round(Number(n) || 0)) + ' €';
+  const tauxCol = t => (t >= 95 ? '#0F6E56' : (t >= 85 ? '#d4701a' : '#c0392b'));
+  const statutLib = s => ({avance:'En avance',bon:'En ligne',surveiller:'À surveiller',retard:'En retard'})[s] || '—';
+  const statutBg = s => ({avance:'#E1F5EE',bon:'#E1F5EE',surveiller:'#fff3e0',retard:'#fdecea'})[s] || '#f3f5f1';
+  const statutCol = s => ({avance:'#0F6E56',bon:'#0F6E56',surveiller:'#a85817',retard:'#a0251b'})[s] || '#5a6560';
+
+  // HERO
+  document.getElementById('tribu-hero').style.display = 'grid';
+  document.getElementById('tribu-hero').style.cssText = 'background:linear-gradient(135deg,#0F6E56,#1D9E75);color:white;border-radius:10px;padding:22px 26px;display:grid;grid-template-columns:1fr auto;gap:24px;align-items:center';
+  document.getElementById('tribu-hero').innerHTML = `
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:24px">
+      <div><div style="font-size:9.5px;text-transform:uppercase;letter-spacing:0.1em;opacity:0.8;font-weight:600;margin-bottom:5px">CA Accessoires</div><div style="font-size:22px;font-weight:600;font-family:monospace">${fmt(totals.acc)}</div><div style="font-size:10.5px;opacity:0.82;margin-top:4px;font-family:monospace">Pot. ${fmt(totals.potentiel)}</div></div>
+      <div><div style="font-size:9.5px;text-transform:uppercase;letter-spacing:0.1em;opacity:0.8;font-weight:600;margin-bottom:5px">CA Prestation</div><div style="font-size:22px;font-weight:600;font-family:monospace">${fmt(totals.presta)}</div></div>
+      <div><div style="font-size:9.5px;text-transform:uppercase;letter-spacing:0.1em;opacity:0.8;font-weight:600;margin-bottom:5px">CA EGT</div><div style="font-size:22px;font-weight:600;font-family:monospace">${fmt(totals.egt)}</div></div>
+    </div>
+    <div style="text-align:center;padding:14px 20px;background:rgba(255,255,255,0.14);border-radius:8px;min-width:112px">
+      <div style="font-size:9.5px;text-transform:uppercase;letter-spacing:0.12em;opacity:0.85;font-weight:700;margin-bottom:6px">Atterr. pondéré</div>
+      <div style="font-size:34px;font-weight:600;font-family:monospace">${totals.taux_pondere.toFixed(0)} %</div>
+    </div>`;
+
+  // GRID des cartes magasin
+  document.getElementById('tribu-grid').innerHTML = magasins.map(mag => {
+    const tauxC = tauxCol(mag.taux);
+    const bgSt = statutBg(mag.statut);
+    const coSt = statutCol(mag.statut);
+    const barWidth = Math.min(mag.taux, 130);
+    return `
+      <article style="background:#ffffff;border:1px solid #e4e8e5;border-left:3px solid ${tauxC};border-radius:8px;padding:16px 18px;display:flex;flex-direction:column;gap:12px">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px">
+          <div><strong style="font-size:19px;color:#0f1611">${escapeHtml_(mag.code)}</strong><span style="font-size:12px;color:#8a9690;margin-left:6px">${escapeHtml_(mag.ville || '')}</span></div>
+          <span style="font-size:10px;padding:3px 8px;border-radius:999px;font-weight:700;letter-spacing:0.04em;white-space:nowrap;background:${bgSt};color:${coSt}">${statutLib(mag.statut)}</span>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);padding:8px 0 0;border-top:1px solid #eef1ed">
+          <div><div style="font-size:9.5px;text-transform:uppercase;letter-spacing:0.08em;color:#8a9690;font-weight:600">ACC</div><div style="font-family:monospace;font-size:13px;font-weight:500">${fmt(mag.acc)}</div></div>
+          <div><div style="font-size:9.5px;text-transform:uppercase;letter-spacing:0.08em;color:#8a9690;font-weight:600">Presta</div><div style="font-family:monospace;font-size:13px;font-weight:500">${fmt(mag.presta)}</div></div>
+          <div><div style="font-size:9.5px;text-transform:uppercase;letter-spacing:0.08em;color:#8a9690;font-weight:600">EGT</div><div style="font-family:monospace;font-size:13px;font-weight:500">${fmt(mag.egt)}</div></div>
+        </div>
+        <div>
+          <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:4px"><span style="color:#8a9690;text-transform:uppercase;letter-spacing:0.06em;font-weight:600;font-size:9.5px">Prévs</span><span style="font-family:monospace">${fmt(mag.prevs)}</span></div>
+          <div style="height:7px;background:#eef1ed;border-radius:999px;overflow:hidden"><div style="height:100%;background:${tauxC};width:${barWidth}%"></div></div>
+          <div style="display:flex;justify-content:space-between;font-size:11px;margin-top:4px"><span style="color:#8a9690;text-transform:uppercase;letter-spacing:0.06em;font-weight:600;font-size:9.5px">Atterr.</span><span style="font-family:monospace">${fmt(mag.atterrissage)}</span></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span style="font-size:9.5px;text-transform:uppercase;letter-spacing:0.08em;color:#8a9690;font-weight:600">Taux</span>
+          <span style="font-size:22px;font-weight:600;color:${tauxC};font-family:monospace">${mag.taux.toFixed(0)} %</span>
+        </div>
+      </article>`;
+  }).join('');
+}
+
+async function ouvrirTribuPrefs() {
+  document.getElementById('modal-tribu-prefs').style.display = 'flex';
+  const list = document.getElementById('tribu-prefs-list');
+  list.innerHTML = '<div style="padding:12px;color:#8a9690">Chargement…</div>';
+
+  try {
+    const r = await apiGet({ action: 'tribu.prefs.get' });
+    if (!r.ok) {
+      list.innerHTML = '<div style="color:#c0392b;padding:12px">' + (r.error && r.error.message || 'Erreur') + '</div>';
+      return;
+    }
+    tribuState.prefsAll = (r.data.all_magasins || []).map(x => x.code);
+    tribuState.prefsSel = r.data.magasins_codes || [];
+
+    list.innerHTML = tribuState.prefsAll.sort().map(code => {
+      const checked = tribuState.prefsSel.indexOf(code) !== -1 ? ' checked' : '';
+      return '<label style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:6px;cursor:pointer">' +
+               '<input type="checkbox" data-code="' + code + '"' + checked + ' onchange="toggleTribuMagasin(this)" style="width:16px;height:16px;accent-color:#1D9E75">' +
+               '<strong>' + escapeHtml_(code) + '</strong>' +
+             '</label>';
+    }).join('');
+  } catch (err) {
+    list.innerHTML = '<div style="color:#c0392b;padding:12px">Erreur réseau : ' + err.message + '</div>';
+  }
+}
+
+function fermerTribuPrefs() {
+  document.getElementById('modal-tribu-prefs').style.display = 'none';
+  // Reload dashboard avec la nouvelle sélection
+  chargerTribuDashboard(true);
+}
+
+async function toggleTribuMagasin(cb) {
+  const code = cb.getAttribute('data-code');
+  if (cb.checked) {
+    if (tribuState.prefsSel.indexOf(code) === -1) tribuState.prefsSel.push(code);
+  } else {
+    tribuState.prefsSel = tribuState.prefsSel.filter(c => c !== code);
+  }
+  document.getElementById('btn-tribu-prefs').textContent = '⚙ Magasins affichés (' + tribuState.prefsSel.length + ')';
+  // Save (debounced)
+  clearTimeout(tribuState.saveTimer);
+  tribuState.saveTimer = setTimeout(async () => {
+    try {
+      await apiPost({
+        action: 'tribu.prefs.set',
+        magasin_codes: JSON.stringify(tribuState.prefsSel)
+      });
+    } catch (e) { /* silencieux */ }
+  }, 500);
 }
 
 // Drag & drop sur la dropzone
