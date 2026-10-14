@@ -2393,7 +2393,7 @@ const API_URL = 'https://script.google.com/macros/s/AKfycbzoHrDvODIhDHXDWz9tNerT
 
 // Version locale de l'app (à incrémenter à chaque déploiement).
 // Format: YYYYMMDD-HHMM pour faciliter la comparaison chronologique.
-const APP_VERSION = '20261014-1430';  // +Modifier commande (montants + date pose) · fix affichage mois_facturation
+const APP_VERSION = '20261014-1530';  // +auth admin par token (Vue Tribu, Brief Perf) · fix fenêtre vide Tribu
 // Intervalle de vérification des MAJ en arrière-plan (5 minutes)
 const VERIF_MAJ_INTERVAL_MS = 5 * 60 * 1000;
 
@@ -5282,13 +5282,38 @@ function genererHtmlBriefPerf_(data, commentaire) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// VUE TRIBU (v20261014) — vision globale admin
+// VUE TRIBU (v20261014) — vision globale admin, auth par token stocké localStorage
 // ═══════════════════════════════════════════════════════════════════════════
 let tribuState = { prefsAll: [], prefsSel: [] };
 
+const ADMIN_TOKEN_KEY = 'suiviCA_admin_token';
+
+function getAdminToken_() {
+  try { return localStorage.getItem(ADMIN_TOKEN_KEY) || ''; } catch (e) { return ''; }
+}
+function setAdminToken_(t) {
+  try { localStorage.setItem(ADMIN_TOKEN_KEY, t); } catch (e) {}
+}
+function demanderAdminToken_() {
+  const t = prompt('Token admin (fourni par Pierre, visible dans les logs Apps Script après setupVueTribu) :');
+  if (t && t.trim()) { setAdminToken_(t.trim()); return t.trim(); }
+  return '';
+}
+
 function ouvrirVueTribu() {
+  // Récupérer le token (prompt si pas encore défini)
+  let token = getAdminToken_();
+  if (!token) {
+    token = demanderAdminToken_();
+    if (!token) { showToast('Token admin requis', 'error'); return; }
+  }
   showScreen('screen-tribu');
   chargerTribuDashboard(false);
+}
+
+function reinitAdminToken() {
+  try { localStorage.removeItem(ADMIN_TOKEN_KEY); } catch (e) {}
+  showToast('Token admin réinitialisé', 'success');
 }
 
 function retourAccueil() {
@@ -5302,13 +5327,16 @@ async function chargerTribuDashboard(forceRefresh) {
   document.getElementById('tribu-grid').innerHTML = '';
 
   try {
-    const params = { action: 'tribu.dashboard' };
+    const params = { action: 'tribu.dashboard', admin_token: getAdminToken_() };
     if (forceRefresh) params.force_refresh = '1';
     const r = await apiGet(params);
     if (!r.ok) {
       const msg = r.error && r.error.message || 'Erreur';
       if (r.error && r.error.code === 'FORBIDDEN') {
-        document.getElementById('tribu-loading').innerHTML = '🔒 Accès admin requis.<br><small>Ton email n\'est pas dans la whitelist. Contacte Pierre pour y être ajouté.</small>';
+        document.getElementById('tribu-loading').innerHTML =
+          '🔒 Accès refusé — token admin invalide.<br>' +
+          '<small>Vérifie le token dans Apps Script (fonction <code>afficherAdminToken</code>).</small><br>' +
+          '<button onclick="reinitAdminToken();ouvrirVueTribu()" style="margin-top:12px;background:#1D9E75;color:white;border:0;padding:8px 16px;border-radius:6px;cursor:pointer;font-family:inherit">Saisir à nouveau le token</button>';
       } else {
         document.getElementById('tribu-loading').textContent = 'Erreur : ' + msg;
       }
@@ -5394,7 +5422,7 @@ async function ouvrirTribuPrefs() {
   list.innerHTML = '<div style="padding:12px;color:#8a9690">Chargement…</div>';
 
   try {
-    const r = await apiGet({ action: 'tribu.prefs.get' });
+    const r = await apiGet({ action: 'tribu.prefs.get', admin_token: getAdminToken_() });
     if (!r.ok) {
       list.innerHTML = '<div style="color:#c0392b;padding:12px">' + (r.error && r.error.message || 'Erreur') + '</div>';
       return;
@@ -5434,6 +5462,7 @@ async function toggleTribuMagasin(cb) {
     try {
       await apiPost({
         action: 'tribu.prefs.set',
+        admin_token: getAdminToken_(),
         magasin_codes: JSON.stringify(tribuState.prefsSel)
       });
     } catch (e) { /* silencieux */ }
