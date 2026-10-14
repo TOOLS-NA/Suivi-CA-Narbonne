@@ -1977,6 +1977,44 @@
     </div>
   </div>
 
+  <!-- Modale : Modifier commande (montants ACC/Atelier/EGT + date de pose) — v20261014 -->
+  <div id="modal-modifier-commande" class="modal-overlay" style="display:none">
+    <div class="modal-card" style="max-width:420px">
+      <div class="modal-header">
+        <h3>Modifier la commande</h3>
+        <button class="modal-close" onclick="fermerModifierCommande()" aria-label="Fermer">×</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size:12.5px;color:#5f5e5a;margin-bottom:14px;line-height:1.5">
+          <strong id="mod-cmd-client">—</strong><br>
+          <span style="color:#8a8a8a" id="mod-cmd-denom">—</span>
+        </p>
+        <div class="field">
+          <label class="field-label">ACC HT (€)</label>
+          <input type="number" id="mod-cmd-acc" class="field-input-text" min="0" step="1" inputmode="numeric" style="font-size:15px;padding:12px">
+        </div>
+        <div class="field">
+          <label class="field-label">Atelier (€)</label>
+          <input type="number" id="mod-cmd-atelier" class="field-input-text" min="0" step="1" inputmode="numeric" style="font-size:15px;padding:12px">
+        </div>
+        <div class="field">
+          <label class="field-label">EGT (€)</label>
+          <input type="number" id="mod-cmd-egt" class="field-input-text" min="0" step="1" inputmode="numeric" style="font-size:15px;padding:12px">
+        </div>
+        <div class="field">
+          <label class="field-label">📅 Date de pose (facultatif)</label>
+          <input type="date" id="mod-cmd-date-pose" class="field-input-text" style="font-size:15px;padding:12px">
+          <button type="button" onclick="document.getElementById('mod-cmd-date-pose').value=''" style="background:none;border:0;color:#888;font-size:11px;cursor:pointer;margin-top:4px;padding:2px 0">Effacer la date</button>
+        </div>
+        <div id="modifier-commande-result" style="display:none;margin-top:10px"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" onclick="fermerModifierCommande()">Annuler</button>
+        <button class="btn-primary" id="btn-modifier-commande-valider" onclick="lancerModifierCommande()">Enregistrer</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Écran 3 : saisies (CA jour / Commande / EGT) -->
   <div id="screen-saisie" class="screen">
     <div class="vendeur-header">
@@ -2265,7 +2303,7 @@ const API_URL = 'https://script.google.com/macros/s/AKfycbzoHrDvODIhDHXDWz9tNerT
 
 // Version locale de l'app (à incrémenter à chaque déploiement).
 // Format: YYYYMMDD-HHMM pour faciliter la comparaison chronologique.
-const APP_VERSION = '20261005-0940';  // Fix toast → showToast dans import TAC
+const APP_VERSION = '20261014-1430';  // +Modifier commande (montants + date pose) · fix affichage mois_facturation
 // Intervalle de vérification des MAJ en arrière-plan (5 minutes)
 const VERIF_MAJ_INTERVAL_MS = 5 * 60 * 1000;
 
@@ -3840,6 +3878,11 @@ function renderCommandesEnCours(commandes, vendeurs) {
           </div>${egtBloc}
         </div>
         <div class="cmd-card-actions cmd-card-actions-row1">
+          <button class="cmd-btn cmd-btn-edit" onclick='ouvrirModifierCommande(${JSON.stringify({id:c.id, client:c.client_nom, denom:c.denomination, acc:c.montant_acc_ht, atelier:c.montant_atelier, egt:c.montant_egt, date_pose:c.date_pose}).replace(/'/g, "&#39;")})'>
+            ✏️ Modifier
+          </button>
+        </div>
+        <div class="cmd-card-actions cmd-card-actions-row1">
           <button class="cmd-btn cmd-btn-month" onclick="ouvrirChangerMois('${c.id}', '${c.mois_facturation || ''}')">
             📅 Changer mois
           </button>
@@ -4824,6 +4867,91 @@ async function lancerChangerMois() {
   } catch (err) {
     document.getElementById('changer-mois-result').style.display = 'block';
     document.getElementById('changer-mois-result').innerHTML =
+      '<div class="tac-result-ko">Erreur : ' + err.message + '</div>';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = originalText;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MODIFIER COMMANDE (v20261014) — édition des montants ACC/Atelier/EGT + date pose
+// ═══════════════════════════════════════════════════════════════════════════
+let modifierCommandeIdSaisie = null;
+
+function ouvrirModifierCommande(data) {
+  modifierCommandeIdSaisie = data.id;
+  document.getElementById('mod-cmd-client').textContent = data.client || '—';
+  document.getElementById('mod-cmd-denom').textContent = data.denom || '—';
+  document.getElementById('mod-cmd-acc').value = Number(data.acc) || 0;
+  document.getElementById('mod-cmd-atelier').value = Number(data.atelier) || 0;
+  document.getElementById('mod-cmd-egt').value = Number(data.egt) || 0;
+  // Date_pose au format YYYY-MM-DD pour input type="date"
+  let datePose = '';
+  if (data.date_pose) {
+    const dp = new Date(data.date_pose);
+    if (!isNaN(dp.getTime())) {
+      datePose = dp.getFullYear() + '-' + String(dp.getMonth() + 1).padStart(2, '0') + '-' + String(dp.getDate()).padStart(2, '0');
+    }
+  }
+  document.getElementById('mod-cmd-date-pose').value = datePose;
+  document.getElementById('modifier-commande-result').style.display = 'none';
+  document.getElementById('modifier-commande-result').innerHTML = '';
+  document.getElementById('modal-modifier-commande').style.display = 'flex';
+}
+
+function fermerModifierCommande() {
+  document.getElementById('modal-modifier-commande').style.display = 'none';
+  modifierCommandeIdSaisie = null;
+}
+
+async function lancerModifierCommande() {
+  if (!modifierCommandeIdSaisie) return;
+  const acc = Number(document.getElementById('mod-cmd-acc').value) || 0;
+  const atelier = Number(document.getElementById('mod-cmd-atelier').value) || 0;
+  const egt = Number(document.getElementById('mod-cmd-egt').value) || 0;
+  const datePose = document.getElementById('mod-cmd-date-pose').value || '';
+
+  if (acc < 0 || atelier < 0 || egt < 0) {
+    showToast('Les montants doivent être positifs', 'error');
+    return;
+  }
+  if (acc === 0 && atelier === 0 && egt === 0) {
+    showToast('Au moins un montant doit être > 0', 'error');
+    return;
+  }
+
+  const btn = document.getElementById('btn-modifier-commande-valider');
+  const originalText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Enregistrement…';
+
+  try {
+    const modifications = {
+      montant_acc_ht: acc,
+      montant_atelier: atelier,
+      montant_egt: egt
+    };
+    // date_pose : si vide, on envoie '' pour effacer, sinon la date au format YYYY-MM-DD
+    modifications.date_pose = datePose || '';
+
+    const r = await apiPost({
+      action: 'saisie.update',
+      magasin_code: state.magasin.code,
+      saisie_id: modifierCommandeIdSaisie,
+      operation: 'MODIFIER',
+      modifications: modifications
+    });
+    if (!r.ok) throw new Error(r.error && r.error.message || 'Erreur backend');
+
+    try { sessionStorage.removeItem(CACHE_KEY_DASHBOARD); } catch (e) {}
+
+    showToast('✓ Commande mise à jour', 'success');
+    fermerModifierCommande();
+    chargerCommandesEnCours();
+  } catch (err) {
+    document.getElementById('modifier-commande-result').style.display = 'block';
+    document.getElementById('modifier-commande-result').innerHTML =
       '<div class="tac-result-ko">Erreur : ' + err.message + '</div>';
   } finally {
     btn.disabled = false;
