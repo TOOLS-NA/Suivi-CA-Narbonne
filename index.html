@@ -2393,7 +2393,7 @@ const API_URL = 'https://script.google.com/macros/s/AKfycbzoHrDvODIhDHXDWz9tNerT
 
 // Version locale de l'app (à incrémenter à chaque déploiement).
 // Format: YYYYMMDD-HHMM pour faciliter la comparaison chronologique.
-const APP_VERSION = '20261014-1530';  // +auth admin par token (Vue Tribu, Brief Perf) · fix fenêtre vide Tribu
+const APP_VERSION = '20261014-1620';  // fix prefs Tribu : save forcée à la fermeture modale
 // Intervalle de vérification des MAJ en arrière-plan (5 minutes)
 const VERIF_MAJ_INTERVAL_MS = 5 * 60 * 1000;
 
@@ -5442,9 +5442,20 @@ async function ouvrirTribuPrefs() {
   }
 }
 
-function fermerTribuPrefs() {
+async function fermerTribuPrefs() {
   document.getElementById('modal-tribu-prefs').style.display = 'none';
-  // Reload dashboard avec la nouvelle sélection
+  // Forcer la sauvegarde immédiate si un debounce est en attente, puis reload
+  if (tribuState.saveTimer) {
+    clearTimeout(tribuState.saveTimer);
+    tribuState.saveTimer = null;
+    try {
+      await apiPost({
+        action: 'tribu.prefs.set',
+        admin_token: getAdminToken_(),
+        magasin_codes: JSON.stringify(tribuState.prefsSel)
+      });
+    } catch (e) { /* silencieux */ }
+  }
   chargerTribuDashboard(true);
 }
 
